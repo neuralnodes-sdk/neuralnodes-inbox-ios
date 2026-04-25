@@ -6,6 +6,7 @@ public struct InboxView: View {
     @State private var showChannelFilter = false
     @State private var showStatusFilter = false
     @State private var selectedSearchResult: SearchConversationResult?
+    @State private var showInboxSearchConversation = false // Separate boolean for navigation
     @State private var globalSearchNavigation: (conversation: Conversation, searchText: String)?
     @State private var showGlobalSearchConversation = false // Separate boolean for navigation
     @Environment(\.colorScheme) var colorScheme
@@ -41,27 +42,15 @@ public struct InboxView: View {
                         // Find the search result and convert to conversation
                         if let result = searchViewModel.searchResults.first(where: { $0.id == conversationId }) {
                             selectedSearchResult = result
-                            searchViewModel.clearSearch()
+                            // Trigger navigation with a slight delay
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                showInboxSearchConversation = true
+                                // Clear search after navigation is triggered
+                                searchViewModel.clearSearch()
+                            }
                         }
                     },
                     sdk: sdk
-                )
-                .background(
-                    NavigationLink(
-                        destination: selectedSearchResult.map { result in
-                            ConversationDetailView(
-                                conversation: convertToConversation(result),
-                                sdk: sdk
-                            )
-                        },
-                        isActive: Binding(
-                            get: { selectedSearchResult != nil },
-                            set: { if !$0 { selectedSearchResult = nil } }
-                        )
-                    ) {
-                        EmptyView()
-                    }
-                    .hidden()
                 )
             } else {
                 // Filter Bar
@@ -161,6 +150,25 @@ public struct InboxView: View {
         }
         .overlay(
             Group {
+                // Navigation for inbox search results
+                if let result = selectedSearchResult {
+                    NavigationLink(
+                        destination: ConversationDetailView(
+                            conversation: convertToConversation(result),
+                            sdk: sdk
+                        ),
+                        isActive: $showInboxSearchConversation,
+                        label: { EmptyView() }
+                    )
+                    .opacity(0)
+                    .onChange(of: showInboxSearchConversation) { newValue in
+                        if !newValue {
+                            selectedSearchResult = nil
+                        }
+                    }
+                }
+                
+                // Navigation for global search results
                 if let nav = globalSearchNavigation {
                     NavigationLink(
                         destination: ConversationDetailView(
