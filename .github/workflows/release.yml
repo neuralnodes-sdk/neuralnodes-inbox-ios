@@ -23,13 +23,15 @@ on:
 jobs:
   release:
     runs-on: macos-latest
+    permissions:
+      contents: write
+      packages: read
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Notify Slack - Build Started
         uses: slackapi/slack-github-action@v1.25.0
