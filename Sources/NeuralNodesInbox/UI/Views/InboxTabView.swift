@@ -13,25 +13,31 @@ public struct InboxTabView: View {
     public var body: some View {
         TabView(selection: $selectedTab) {
             // Unified Inbox Tab
-            InboxView(sdk: sdk)
-                .tabItem {
-                    Label("Inbox", systemImage: "tray.2.fill")
-                }
-                .tag(0)
+            NavigationStack {
+                InboxView(sdk: sdk)
+            }
+            .tabItem {
+                Label("Inbox", systemImage: "tray.2.fill")
+            }
+            .tag(0)
             
             // Live Chat Tab
-            LiveChatListView(sdk: sdk)
-                .tabItem {
-                    Label("Live Chat", systemImage: "message.fill")
-                }
-                .tag(1)
+            NavigationStack {
+                LiveChatListView(sdk: sdk)
+            }
+            .tabItem {
+                Label("Live Chat", systemImage: "message.fill")
+            }
+            .tag(1)
             
             // Settings Tab
-            InboxSettingsView(sdk: sdk)
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
-                .tag(2)
+            NavigationStack {
+                InboxSettingsView(sdk: sdk)
+            }
+            .tabItem {
+                Label("Settings", systemImage: "gear")
+            }
+            .tag(2)
         }
         .accentColor(.primaryPurple)
     }

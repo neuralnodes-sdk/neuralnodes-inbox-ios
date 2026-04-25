@@ -9,6 +9,7 @@ public class NeuralNodesInbox {
     private let realtimeClient: RealtimeClient
     private let pusherClient: PusherClient
     private let pushService: PushNotificationService
+    private let searchService: SearchService
     private var config: SDKConfig?
     
     public init(apiKey: String) {
@@ -18,6 +19,7 @@ public class NeuralNodesInbox {
         self.realtimeClient = RealtimeClient()
         self.pusherClient = PusherClient()
         self.pushService = PushNotificationService(apiClient: apiClient)
+        self.searchService = SearchService(apiClient: apiClient, debounceInterval: 0.3)
     }
     
     public func initialize(completion: @escaping (Result<SDKConfig, Error>) -> Void) {
@@ -89,6 +91,11 @@ public class NeuralNodesInbox {
     public func getPusherClient() -> PusherClient {
         return pusherClient
     }
+    
+    public func getSearchService() -> SearchService {
+        return searchService
+    }
+    
     public func getConfig() -> SDKConfig? {
         return config
     }

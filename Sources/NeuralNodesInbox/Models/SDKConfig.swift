@@ -70,5 +70,12 @@ public struct SDKConfig: Codable {
 /// Response wrapper for SDK config
 struct SDKConfigResponse: Codable {
     let success: Bool
+    let clientId: String
     let config: SDKConfig
+    
+    enum CodingKeys: String, CodingKey {
+        case success
+        case clientId = "client_id"
+        case config
+    }
 }

@@ -2,8 +2,12 @@ import SwiftUI
 
 public struct InboxView: View {
     @StateObject private var viewModel: InboxViewModel
+    @StateObject private var searchViewModel: SearchViewModel
     @State private var showChannelFilter = false
     @State private var showStatusFilter = false
+    @State private var selectedSearchResult: SearchConversationResult?
+    @State private var globalSearchNavigation: (conversation: Conversation, searchText: String)?
+    @State private var showGlobalSearchConversation = false // Separate boolean for navigation
     @Environment(\.colorScheme) var colorScheme
     
     private let sdk: NeuralNodesInbox
@@ -11,44 +15,90 @@ public struct InboxView: View {
     public init(sdk: NeuralNodesInbox) {
         self.sdk = sdk
         _viewModel = StateObject(wrappedValue: InboxViewModel(sdk: sdk))
+        _searchViewModel = StateObject(wrappedValue: SearchViewModel(searchService: sdk.getSearchService()))
     }
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Filter Bar
-            FilterBar(
-                selectedChannel: $viewModel.selectedChannel,
-                selectedStatus: $viewModel.selectedStatus,
-                onChannelTap: { showChannelFilter = true },
-                onStatusTap: { showStatusFilter = true }
+            // Search Bar
+            SearchBar(
+                searchText: $searchViewModel.searchText,
+                isSearching: $searchViewModel.isSearching,
+                placeholder: "Search conversations",
+                suggestions: searchViewModel.suggestions,
+                onSuggestionTap: { suggestion in
+                    searchViewModel.selectSuggestion(suggestion)
+                },
+                onSearch: { _ in }
             )
             
-            // Conversation List
-            if viewModel.isLoading && viewModel.conversations.isEmpty {
-                LoadingView()
-            } else if viewModel.conversations.isEmpty {
-                EmptyStateView(
-                    icon: "tray",
-                    title: "No Conversations",
-                    message: "There are no conversations matching your filters"
+            // Show search results or normal inbox
+            if searchViewModel.isSearching && !searchViewModel.searchText.isEmpty {
+                SearchResultsView(
+                    results: searchViewModel.searchResults,
+                    isLoading: searchViewModel.isLoading,
+                    onConversationTap: { conversationId in
+                        // Find the search result and convert to conversation
+                        if let result = searchViewModel.searchResults.first(where: { $0.id == conversationId }) {
+                            selectedSearchResult = result
+                            searchViewModel.clearSearch()
+                        }
+                    },
+                    sdk: sdk
+                )
+                .background(
+                    NavigationLink(
+                        destination: selectedSearchResult.map { result in
+                            ConversationDetailView(
+                                conversation: convertToConversation(result),
+                                sdk: sdk
+                            )
+                        },
+                        isActive: Binding(
+                            get: { selectedSearchResult != nil },
+                            set: { if !$0 { selectedSearchResult = nil } }
+                        )
+                    ) {
+                        EmptyView()
+                    }
+                    .hidden()
                 )
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(viewModel.conversations) { conversation in
-                            NavigationLink(destination: ConversationDetailView(conversation: conversation, sdk: sdk)) {
-                                ConversationRow(conversation: conversation)
-                                    .padding(.horizontal, 16)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            if conversation.id != viewModel.conversations.last?.id {
-                                Divider()
-                                    .padding(.leading, 82)
+                // Filter Bar
+                FilterBar(
+                    selectedChannel: $viewModel.selectedChannel,
+                    selectedStatus: $viewModel.selectedStatus,
+                    onChannelTap: { showChannelFilter = true },
+                    onStatusTap: { showStatusFilter = true }
+                )
+                
+                // Conversation List
+                if viewModel.isLoading && viewModel.conversations.isEmpty {
+                    LoadingView()
+                } else if viewModel.conversations.isEmpty {
+                    EmptyStateView(
+                        icon: "tray",
+                        title: "No Conversations",
+                        message: "There are no conversations matching your filters"
+                    )
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(viewModel.conversations) { conversation in
+                                NavigationLink(destination: ConversationDetailView(conversation: conversation, sdk: sdk)) {
+                                    ConversationRow(conversation: conversation)
+                                        .padding(.horizontal, 16)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                if conversation.id != viewModel.conversations.last?.id {
+                                    Divider()
+                                        .padding(.leading, 82)
+                                }
                             }
                         }
+                        .padding(.vertical, 8)
                     }
-                    .padding(.vertical, 8)
                 }
             }
         }
@@ -98,5 +148,59 @@ public struct InboxView: View {
                 await viewModel.loadConversations()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToConversationWithSearch"))) { notification in
+            if let userInfo = notification.userInfo,
+               let conversation = userInfo["conversation"] as? Conversation,
+               let searchText = userInfo["searchText"] as? String {
+                globalSearchNavigation = (conversation, searchText)
+                // Trigger navigation with a slight delay to ensure state is set
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    showGlobalSearchConversation = true
+                }
+            }
+        }
+        .overlay(
+            Group {
+                if let nav = globalSearchNavigation {
+                    NavigationLink(
+                        destination: ConversationDetailView(
+                            conversation: nav.conversation,
+                            sdk: sdk,
+                            initialSearchText: nav.searchText
+                        ),
+                        isActive: $showGlobalSearchConversation,
+                        label: { EmptyView() }
+                    )
+                    .opacity(0)
+                    .onChange(of: showGlobalSearchConversation) { newValue in
+                        if !newValue {
+                            globalSearchNavigation = nil
+                        }
+                    }
+                }
+            }
+        )
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Convert SearchConversationResult to Conversation for navigation
+    private func convertToConversation(_ result: SearchConversationResult) -> Conversation {
+        // Create a Conversation from the search result
+        // Note: We use current date for createdAt/updatedAt since search results don't include them
+        let now = Date()
+        
+        return Conversation(
+            id: result.id,
+            channel: result.channel,
+            contactName: result.contactName,
+            contactEmail: result.contactEmail,
+            contactPhone: result.contactPhone,
+            lastMessagePreview: result.lastMessagePreview,
+            unreadCount: result.unreadCount,
+            status: result.status,
+            createdAt: now,
+            updatedAt: result.lastMessageAt ?? now
+        )
     }
 }

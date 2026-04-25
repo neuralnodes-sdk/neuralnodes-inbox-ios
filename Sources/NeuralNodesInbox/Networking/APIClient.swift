@@ -6,6 +6,7 @@ public class APIClient {
     private let apiKey: String
     private let baseURL: String
     private let session: URLSession
+    private var clientId: String?
     
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
@@ -76,13 +77,15 @@ public class APIClient {
         self.session = URLSession.shared
     }
     
-    // MARK: - SDK Configuration
-    
     public func getConfig() async throws -> SDKConfig {
         let response: SDKConfigResponse = try await request(
             path: "/sdk/config",
             method: "GET"
         )
+        
+        // Store client_id from response (it's at root level, not in config)
+        self.clientId = response.clientId
+        
         return response.config
     }
     
@@ -198,6 +201,80 @@ public class APIClient {
         )
     }
     
+    // MARK: - Search API
+    
+    /// Search conversations by name, email, phone, username, or identifier
+    public func searchConversations(filters: ConversationSearchFilters) async throws -> SearchConversationsResponse {
+        guard let clientId = clientId else {
+            throw APIError.clientIdNotSet
+        }
+        
+        let response: SearchConversationsResponse = try await request(
+            path: "/api/conversations/search/conversations",
+            method: "GET",
+            queryItems: filters.toQueryItems(clientId: clientId)
+        )
+        return response
+    }
+    
+    /// Search messages within a specific conversation
+    public func searchMessagesInConversation(
+        conversationId: String,
+        query: String,
+        limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> SearchMessagesResponse {
+        let queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)")
+        ]
+        
+        let response: SearchMessagesResponse = try await request(
+            path: "/api/conversations/search/messages/conversation/\(conversationId)",
+            method: "GET",
+            queryItems: queryItems
+        )
+        return response
+    }
+    
+    /// Search messages across all conversations
+    public func searchAllMessages(filters: MessageSearchFilters) async throws -> SearchMessagesResponse {
+        guard let clientId = clientId else {
+            throw APIError.clientIdNotSet
+        }
+        
+        let response: SearchMessagesResponse = try await request(
+            path: "/api/conversations/search/messages/all",
+            method: "GET",
+            queryItems: filters.toQueryItems(clientId: clientId)
+        )
+        return response
+    }
+    
+    /// Get search suggestions (autocomplete)
+    public func getSearchSuggestions(
+        query: String,
+        limit: Int = 10
+    ) async throws -> SearchSuggestionsResponse {
+        guard let clientId = clientId else {
+            throw APIError.clientIdNotSet
+        }
+        
+        let queryItems = [
+            URLQueryItem(name: "client_id", value: clientId),
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: "\(limit)")
+        ]
+        
+        let response: SearchSuggestionsResponse = try await request(
+            path: "/api/conversations/search/suggestions",
+            method: "GET",
+            queryItems: queryItems
+        )
+        return response
+    }
+    
     // MARK: - Generic Request
     
     public func request<T: Decodable>(
@@ -231,13 +308,26 @@ public class APIClient {
             throw APIError.invalidResponse
         }
         
+        // Log request and response
+        print("📡 \(method) \(path)")
+        print("   Status: \(httpResponse.statusCode)")
+        
         guard (200...299).contains(httpResponse.statusCode) else {
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("   ❌ Error Response: \(jsonString)")
+            }
             throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        // Log successful response
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("   ✅ Response: \(jsonString)")
         }
         
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
+            print("   ❌ Decoding Error: \(error)")
             throw APIError.decodingError(error)
         }
     }
@@ -248,6 +338,7 @@ public class APIClient {
 public enum APIError: Error, LocalizedError {
     case invalidURL
     case invalidResponse
+    case clientIdNotSet
     case httpError(statusCode: Int)
     case decodingError(Error)
     case networkError(Error)
@@ -258,6 +349,8 @@ public enum APIError: Error, LocalizedError {
             return "Invalid URL"
         case .invalidResponse:
             return "Invalid response from server"
+        case .clientIdNotSet:
+            return "Client ID not set. SDK must be initialized first."
         case .httpError(let statusCode):
             return "HTTP error: \(statusCode)"
         case .decodingError(let error):

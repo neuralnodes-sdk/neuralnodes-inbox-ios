@@ -47,13 +47,13 @@ public class PusherClient {
         onMessage: @escaping (ChatMessage) -> Void,
         onTyping: @escaping (Bool) -> Void
     ) {
-        guard let pusher = pusher else {
+        guard pusher != nil else {
             print("⚠️ Pusher not initialized")
             return
         }
         
         let channelName = "escalation-\(escalationId)"
-        let channel = pusher.subscribe(channelName)
+        let channel = pusher!.subscribe(channelName)
         
         // Subscribe to new messages
         let _ = channel.bind(eventName: "new-message") { (event: PusherEvent) in
@@ -147,7 +147,7 @@ public class PusherClient {
     // MARK: - Trigger Events
     
     public func sendTypingIndicator(escalationId: String, isTyping: Bool) {
-        guard let pusher = pusher,
+        guard pusher != nil,
               let channel = subscribedChannels[escalationId] else {
             return
         }

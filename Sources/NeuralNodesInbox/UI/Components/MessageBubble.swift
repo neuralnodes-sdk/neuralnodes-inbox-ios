@@ -20,10 +20,14 @@ extension ChatMessage: MessageProtocol {}
 
 public struct MessageBubble<T: MessageProtocol>: View {
     let message: T
+    let searchText: String?
+    let isHighlighted: Bool
     @Environment(\.colorScheme) var colorScheme
     
-    public init(message: T) {
+    public init(message: T, searchText: String? = nil, isHighlighted: Bool = false) {
         self.message = message
+        self.searchText = searchText
+        self.isHighlighted = isHighlighted
     }
     
     private var isSystemMessage: Bool {
@@ -69,9 +73,7 @@ public struct MessageBubble<T: MessageProtocol>: View {
                     }
                     
                     // Message Bubble
-                    Text(message.messageText)
-                        .font(.system(size: 16, weight: .regular, design: .rounded))
-                        .foregroundColor(message.isFromAgent ? .white : (colorScheme == .dark ? .white : .primary))
+                    messageTextView
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .background(
@@ -89,6 +91,11 @@ public struct MessageBubble<T: MessageProtocol>: View {
                         )
                         .clipShape(
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        )
+                        .overlay(
+                            // Highlight border when this is the current search result
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(isHighlighted ? Color.yellow : Color.clear, lineWidth: 3)
                         )
                         .shadow(
                             color: message.isFromAgent
@@ -118,5 +125,55 @@ public struct MessageBubble<T: MessageProtocol>: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: message.createdAt)
+    }
+    
+    /// Message text with search highlighting
+    @ViewBuilder
+    private var messageTextView: some View {
+        if let searchText = searchText, !searchText.isEmpty {
+            highlightedText(text: message.messageText, highlight: searchText)
+                .font(.system(size: 16, weight: .regular, design: .rounded))
+        } else {
+            Text(message.messageText)
+                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .foregroundColor(message.isFromAgent ? .white : (colorScheme == .dark ? .white : .primary))
+        }
+    }
+    
+    /// Create attributed text with highlighted search terms
+    private func highlightedText(text: String, highlight: String) -> Text {
+        let lowercasedText = text.lowercased()
+        let lowercasedHighlight = highlight.lowercased()
+        
+        var result = Text("")
+        var currentIndex = text.startIndex
+        
+        while currentIndex < text.endIndex {
+            // Find next occurrence of search term
+            if let range = lowercasedText.range(of: lowercasedHighlight, range: currentIndex..<text.endIndex) {
+                // Add text before match
+                if currentIndex < range.lowerBound {
+                    let beforeText = String(text[currentIndex..<range.lowerBound])
+                    result = result + Text(beforeText)
+                        .foregroundColor(message.isFromAgent ? .white : (colorScheme == .dark ? .white : .primary))
+                }
+                
+                // Add highlighted match (yellow text with bold weight)
+                let matchText = String(text[range])
+                result = result + Text(matchText)
+                    .fontWeight(.bold)
+                    .foregroundColor(.yellow)
+                
+                currentIndex = range.upperBound
+            } else {
+                // No more matches, add remaining text
+                let remainingText = String(text[currentIndex..<text.endIndex])
+                result = result + Text(remainingText)
+                    .foregroundColor(message.isFromAgent ? .white : (colorScheme == .dark ? .white : .primary))
+                break
+            }
+        }
+        
+        return result
     }
 }
