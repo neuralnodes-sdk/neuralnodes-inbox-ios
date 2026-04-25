@@ -1,34 +1,29 @@
 # NeuralNodes Inbox SDK for iOS
 
-[![Swift Version](https://img.shields.io/badge/Swift-5.5+-orange.svg)](https://swift.org)
-[![Platform](https://img.shields.io/badge/platform-iOS%2013.0+-lightgrey.svg)](https://developer.apple.com/ios/)
-[![SPM Compatible](https://img.shields.io/badge/SPM-compatible-brightgreen.svg)](https://swift.org/package-manager/)
-
-A powerful, production-ready iOS SDK for integrating NeuralNodes Inbox into your iOS applications. Built with SwiftUI and UIKit support, featuring real-time messaging, live chat, and comprehensive conversation management.
+A powerful, flexible iOS SDK for integrating customer support inbox functionality into your app. Choose from plug-and-play UI components or build completely custom interfaces with our headless API.
 
 ## Features
 
-- Native iOS Experience - Built with SwiftUI and UIKit
-- Real-time Messaging - Instant message delivery with Ably and Pusher
-- Live Chat Support - Handle customer escalations in real-time
-- Conversation Management - Full inbox with filtering and status updates
-- Customizable UI - Adapt the interface to match your brand
-- Push Notifications - APNs integration for message alerts
-- Optimistic Updates - Instant UI feedback for better UX
-- Pagination - Efficient message loading with infinite scroll
-- Multi-channel Support - WhatsApp, Telegram, Web Chat, and more
+- **Multi-channel Support** - WhatsApp, Email, SMS, Web Chat
+- **Real-time Messaging** - Instant message delivery with Ably and Pusher
+- **Live Chat Escalations** - Handle escalated conversations
+- **Push Notifications** - APNs integration for message alerts
+- **Status Management** - Active, Pending, Resolved, Closed workflows
+- **Message Pagination** - Efficient loading of conversation history
+- **Optimistic Updates** - Instant UI feedback
+- **Flexible Integration** - Use pre-built UI or build your own
 
 ## Requirements
 
-- iOS 13.0+
-- Xcode 13.0+
-- Swift 5.5+
+- iOS 16.0+
+- Swift 5.7+
+- Xcode 14.0+
 
 ## Installation
 
-### Swift Package Manager (Recommended)
+### Swift Package Manager
 
-Add the following to your `Package.swift` file:
+Add the following to your `Package.swift`:
 
 ```swift
 dependencies: [
@@ -37,17 +32,9 @@ dependencies: [
 ```
 
 Or in Xcode:
-
-1. Go to **File > Add Package Dependencies**
-2. Enter the repository URL: `https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios.git`
-3. Select the version you want to use
-4. Click **Add Package**
-
-### CocoaPods
-
-```ruby
-pod 'NeuralNodesInbox', '~> 1.0'
-```
+1. File → Add Package Dependencies
+2. Enter: `https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios.git`
+3. Select version and add to your target
 
 ## Quick Start
 
@@ -56,119 +43,176 @@ pod 'NeuralNodesInbox', '~> 1.0'
 ```swift
 import NeuralNodesInbox
 
-class AppDelegate: UIResponder, UIApplicationDelegate {
-    var sdk: NeuralNodesInbox?
-    
-    func application(_ application: UIApplication, 
-                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        
-        // Initialize SDK
-        sdk = NeuralNodesInbox(apiKey: "your_api_key_here")
-        
-        // Load configuration
-        sdk?.initialize { result in
-            switch result {
-            case .success(let config):
-                print("SDK initialized successfully")
-            case .failure(let error):
-                print("Failed to initialize SDK: \(error)")
-            }
-        }
-        
-        return true
+let sdk = NeuralNodesInbox(apiKey: "your-api-key")
+
+sdk.initialize { result in
+    switch result {
+    case .success(let config):
+        print("SDK initialized successfully")
+    case .failure(let error):
+        print("Initialization failed: \(error)")
     }
 }
 ```
 
-### 2. Show the Inbox (UIKit)
+### 2. Choose Your Integration Level
 
-```swift
-import NeuralNodesInbox
+The SDK offers three integration approaches, from easiest to most customizable:
 
-class ViewController: UIViewController {
-    
-    @IBAction func showInboxTapped(_ sender: UIButton) {
-        guard let sdk = (UIApplication.shared.delegate as? AppDelegate)?.sdk else {
-            return
-        }
-        
-        sdk.showInbox(from: self)
-    }
-}
-```
+---
 
-### 3. SwiftUI Integration
+## Integration Options
+
+### Option 1: Plug & Play (Fastest) ⚡
+
+**Best for:** Quick integration, standard UI requirements
+
+Get a complete inbox interface with just one line of code:
 
 ```swift
 import SwiftUI
 import NeuralNodesInbox
 
 struct ContentView: View {
-    @StateObject private var appState = AppState()
+    let sdk: NeuralNodesInbox
     
     var body: some View {
-        NavigationView {
-            VStack {
-                Button("Open Inbox") {
-                    // Navigate to inbox
-                }
-            }
-        }
-        .environmentObject(appState)
-        .onAppear {
-            appState.initializeSDK(apiKey: "your_api_key_here")
+        NavigationStack {
+            InboxTabView(sdk: sdk)
         }
     }
 }
+```
 
-@MainActor
-class AppState: ObservableObject {
-    @Published var sdk: NeuralNodesInbox?
-    @Published var isInitialized = false
+**What you get:**
+- Complete tab bar with Inbox, Live Chat, and Settings
+- All features working out of the box
+- Professional, tested UI
+- Zero UI code required
+
+**Time to integrate:** 5 minutes
+
+---
+
+### Option 2: Component Integration (Flexible) 🎨
+
+**Best for:** Custom app structure, branded experience
+
+Use individual SDK views within your own navigation:
+
+```swift
+import SwiftUI
+import NeuralNodesInbox
+
+struct MyApp: View {
+    let sdk: NeuralNodesInbox
     
-    func initializeSDK(apiKey: String) {
-        sdk = NeuralNodesInbox(apiKey: apiKey)
+    var body: some View {
+        TabView {
+            // Your existing tabs
+            HomeView()
+                .tabItem { Label("Home", systemImage: "house") }
+            
+            // Add SDK inbox view
+            NavigationStack {
+                InboxView(sdk: sdk)
+            }
+            .tabItem { Label("Support", systemImage: "message") }
+            
+            ProfileView()
+                .tabItem { Label("Profile", systemImage: "person") }
+        }
+    }
+}
+```
+
+#### Available Views
+
+```swift
+// Main Views
+InboxView(sdk: sdk)                          // Conversation list with filters
+ConversationDetailView(conversation, sdk)     // Chat interface
+LiveChatListView(sdk: sdk)                   // Escalation list
+LiveChatView(escalation, sdk)                // Live chat interface
+InboxSettingsView(sdk: sdk)                  // SDK information
+
+// Convenience Wrapper
+InboxTabView(sdk: sdk)                       // Complete tab bar UI
+```
+
+#### Example: Modal Presentation
+
+```swift
+Button("Open Support") {
+    showSupport = true
+}
+.sheet(isPresented: $showSupport) {
+    NavigationStack {
+        InboxView(sdk: sdk)
+    }
+}
+```
+
+#### Example: Embedded in Settings
+
+```swift
+NavigationStack {
+    List {
+        Section("Account") {
+            // Your settings
+        }
         
-        sdk?.initialize { [weak self] result in
-            switch result {
-            case .success:
-                self?.isInitialized = true
-            case .failure(let error):
-                print("SDK initialization failed: \(error)")
+        Section("Support") {
+            NavigationLink("Messages") {
+                InboxView(sdk: sdk)
+            }
+            NavigationLink("Live Chat") {
+                LiveChatListView(sdk: sdk)
             }
         }
     }
 }
 ```
 
-## Core Features
+**Time to integrate:** 30 minutes
 
-### Conversation Management
+---
+
+### Option 3: Headless API (Full Control) 🔧
+
+**Best for:** Completely custom UI, unique design requirements
+
+Build your own interface using SDK data and APIs:
+
+#### Get API Clients
+
+```swift
+let apiClient = sdk.getAPIClient()
+let liveChatClient = sdk.getLiveChatClient()
+let realtimeClient = sdk.getRealtimeClient()
+let pusherClient = sdk.getPusherClient()
+```
 
 #### Fetch Conversations
 
 ```swift
-let apiClient = sdk.getAPIClient()
-
-// Fetch all conversations
-let conversations = try await apiClient.getConversations()
-
-// Fetch with filters
-let filters = ConversationFilters(
-    status: "active",
-    channel: "whatsapp",
-    limit: 50,
-    offset: 0
+// Get conversations with filters
+let conversations = try await apiClient.getConversations(
+    filters: ConversationFilters(
+        status: "active",
+        channel: "whatsapp",
+        limit: 20,
+        offset: 0
+    )
 )
-let filteredConversations = try await apiClient.getConversations(filters: filters)
-```
 
-#### Get Messages
+// Get specific conversation
+let conversation = try await apiClient.getConversation(id: conversationId)
 
-```swift
-let messages = try await apiClient.getMessages(
-    conversationId: "conversation_id",
-    limit: 15,
+// Get messages
+let messages = try await apiClient.getConversationMessages(
+    conversationId: conversationId,
+    limit: 50,
     offset: 0
 )
 ```
@@ -177,115 +221,121 @@ let messages = try await apiClient.getMessages(
 
 ```swift
 let message = try await apiClient.sendMessage(
-    conversationId: "conversation_id",
-    text: "Hello, how can I help you?"
+    conversationId: conversationId,
+    text: "Hello, how can I help?"
 )
 ```
 
-#### Update Conversation Status
+#### Update Status
 
 ```swift
-try await apiClient.updateStatus(
-    conversationId: "conversation_id",
+try await apiClient.updateConversationStatus(
+    conversationId: conversationId,
     status: "resolved"
 )
+
+try await apiClient.markAsRead(conversationId: conversationId)
 ```
 
-#### Mark as Read
+#### Real-time Updates
 
 ```swift
-try await apiClient.markAsRead(conversationId: "conversation_id")
+// Subscribe to conversation updates
+realtimeClient.subscribeToConversation(conversationId) { message in
+    // Update your UI with new message
+    print("New message: \(message.messageText)")
+}
+
+// Unsubscribe when done
+realtimeClient.unsubscribe(from: conversationId)
 ```
 
-### Live Chat
-
-#### Get Live Chat Client
+#### Live Chat
 
 ```swift
-let liveChatClient = sdk.getLiveChatClient()
-```
+// Get escalations
+let escalations = try await liveChatClient.getEscalations(limit: 50)
 
-#### Fetch Escalations
-
-```swift
-let escalations = try await liveChatClient.getEscalations(
-    status: "active",
+// Get escalation messages
+let messages = try await liveChatClient.getEscalationMessages(
+    escalationId: escalationId,
     limit: 50,
     offset: 0
 )
-```
 
-#### Get Escalation Messages
-
-```swift
-let messages = try await liveChatClient.getEscalationMessages(
-    escalationId: "escalation_id",
-    limit: 15,
-    offset: 0
-)
-```
-
-#### Send Escalation Message
-
-```swift
+// Send message
 let message = try await liveChatClient.sendEscalationMessage(
-    escalationId: "escalation_id",
-    text: "I'm here to help!"
+    escalationId: escalationId,
+    text: "Message text"
 )
-```
 
-#### End Escalation
-
-```swift
-try await liveChatClient.endEscalation(escalationId: "escalation_id")
-```
-
-### Real-time Updates
-
-#### Subscribe to Conversation Updates (Ably)
-
-```swift
-let realtimeClient = sdk.getRealtimeClient()
-
-realtimeClient.subscribeToConversation("conversation_id") { message in
-    print("New message received: \(message.messageText)")
-}
-```
-
-#### Subscribe to Escalation Updates (Pusher)
-
-```swift
-let pusherClient = sdk.getPusherClient()
-
+// Subscribe to live chat updates
 pusherClient.subscribeToEscalation(
-    "escalation_id",
+    escalationId,
     onMessage: { message in
-        print("New message: \(message.messageText)")
+        // Handle new message
     },
     onTyping: { isTyping in
-        print("User is typing: \(isTyping)")
+        // Handle typing indicator
     }
 )
 ```
 
-#### Unsubscribe
+#### Example: Custom ViewModel
 
 ```swift
-// Unsubscribe from Ably
-realtimeClient.unsubscribe(from: "conversation_id")
+import NeuralNodesInbox
 
-// Unsubscribe from Pusher
-pusherClient.unsubscribe(from: "escalation_id")
+@MainActor
+class CustomInboxViewModel: ObservableObject {
+    @Published var conversations: [Conversation] = []
+    @Published var isLoading = false
+    
+    private let sdk: NeuralNodesInbox
+    
+    init(sdk: NeuralNodesInbox) {
+        self.sdk = sdk
+    }
+    
+    func loadConversations() async {
+        isLoading = true
+        
+        do {
+            let apiClient = sdk.getAPIClient()
+            conversations = try await apiClient.getConversations()
+            isLoading = false
+        } catch {
+            print("Error: \(error)")
+            isLoading = false
+        }
+    }
+    
+    func sendMessage(to conversationId: String, text: String) async {
+        do {
+            let apiClient = sdk.getAPIClient()
+            let message = try await apiClient.sendMessage(
+                conversationId: conversationId,
+                text: text
+            )
+            // Update your UI
+        } catch {
+            print("Error: \(error)")
+        }
+    }
+}
 ```
 
-### Push Notifications
+**Time to integrate:** 2-4 hours
 
-#### Register for Push Notifications
+---
+
+## Push Notifications
+
+### 1. Request Permission
 
 ```swift
 import UserNotifications
 
-// Request permission
 UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
     if granted {
         DispatchQueue.main.async {
@@ -293,272 +343,275 @@ UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound
         }
     }
 }
-
-// Handle device token
-func application(_ application: UIApplication, 
-                 didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    sdk?.registerForPushNotifications(deviceToken: deviceToken)
-}
-
-// Handle incoming notifications
-func application(_ application: UIApplication,
-                 didReceiveRemoteNotification userInfo: [AnyHashable: Any],
-                 fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-    
-    if let conversationId = sdk?.handlePushNotification(userInfo) {
-        // Navigate to conversation
-        print("Open conversation: \(conversationId)")
-    }
-    
-    completionHandler(.newData)
-}
 ```
 
-## Customization
-
-### Custom UI Components
-
-You can build your own UI using the SDK's API clients:
+### 2. Register Device Token
 
 ```swift
-import SwiftUI
-import NeuralNodesInbox
-
-struct CustomInboxView: View {
-    @StateObject private var viewModel: CustomInboxViewModel
-    
-    var body: some View {
-        List(viewModel.conversations) { conversation in
-            NavigationLink(destination: CustomConversationView(conversation: conversation)) {
-                ConversationRow(conversation: conversation)
-            }
-        }
-        .task {
-            await viewModel.loadConversations()
-        }
-    }
-}
-
-@MainActor
-class CustomInboxViewModel: ObservableObject {
-    @Published var conversations: [Conversation] = []
-    private let apiClient: APIClient
-    
-    init(apiClient: APIClient) {
-        self.apiClient = apiClient
-    }
-    
-    func loadConversations() async {
-        do {
-            conversations = try await apiClient.getConversations()
-        } catch {
-            print("Error loading conversations: \(error)")
-        }
-    }
+func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    sdk.registerForPushNotifications(deviceToken: deviceToken)
 }
 ```
 
-### Theming
-
-The SDK respects iOS system appearance (light/dark mode) automatically. You can customize colors by modifying the UI components or using your own views with the API clients.
-
-## Advanced Usage
-
-### Error Handling
+### 3. Handle Notifications
 
 ```swift
-do {
-    let messages = try await apiClient.getMessages(
-        conversationId: "conversation_id",
-        limit: 15,
-        offset: 0
-    )
-} catch APIError.invalidURL {
-    print("Invalid URL")
-} catch APIError.httpError(let statusCode) {
-    print("HTTP error: \(statusCode)")
-} catch APIError.decodingError(let error) {
-    print("Decoding error: \(error)")
-} catch {
-    print("Unknown error: \(error)")
+func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) {
+    let conversationId = sdk.handlePushNotification(response.notification.request.content.userInfo)
+    // Navigate to conversation if needed
 }
 ```
-
-### Pagination
-
-```swift
-class MessageViewModel: ObservableObject {
-    @Published var messages: [Message] = []
-    private var currentOffset = 0
-    private let pageSize = 15
-    
-    func loadMoreMessages(conversationId: String) async {
-        do {
-            let newMessages = try await apiClient.getMessages(
-                conversationId: conversationId,
-                limit: pageSize,
-                offset: currentOffset
-            )
-            
-            messages.append(contentsOf: newMessages)
-            currentOffset += newMessages.count
-        } catch {
-            print("Error loading more messages: \(error)")
-        }
-    }
-}
-```
-
-### Optimistic Updates
-
-```swift
-func sendMessage(text: String) async {
-    // Create optimistic message
-    let optimisticMessage = Message(
-        id: "temp-\(UUID().uuidString)",
-        conversationId: conversationId,
-        messageType: "text",
-        messageText: text,
-        senderType: "agent",
-        senderName: "You",
-        senderId: nil,
-        attachmentUrl: nil,
-        attachmentType: nil,
-        attachmentName: nil,
-        isRead: false,
-        createdAt: Date()
-    )
-    
-    // Add to UI immediately
-    messages.append(optimisticMessage)
-    
-    do {
-        // Send to server
-        let sentMessage = try await apiClient.sendMessage(
-            conversationId: conversationId,
-            text: text
-        )
-        
-        // Replace optimistic message with real one
-        if let index = messages.firstIndex(where: { $0.id == optimisticMessage.id }) {
-            messages[index] = sentMessage
-        }
-    } catch {
-        // Remove optimistic message on error
-        messages.removeAll { $0.id == optimisticMessage.id }
-    }
-}
-```
-
-## API Reference
-
-### NeuralNodesInbox
-
-Main SDK class for initialization and configuration.
-
-#### Properties
-
-- `isInitialized: Bool` - Check if SDK is initialized
-- `static var version: String` - Get SDK version
-- `static var fullVersion: String` - Get full SDK version string
-
-#### Methods
-
-- `init(apiKey: String)` - Initialize SDK with API key
-- `initialize(completion: @escaping (Result<SDKConfig, Error>) -> Void)` - Load configuration
-- `showInbox(from: UIViewController)` - Show inbox UI (UIKit)
-- `registerForPushNotifications(deviceToken: Data)` - Register device for push
-- `handlePushNotification(_ userInfo: [AnyHashable: Any]) -> String?` - Handle incoming notification
-- `getAPIClient() -> APIClient` - Get API client
-- `getLiveChatClient() -> LiveChatClient` - Get live chat client
-- `getRealtimeClient() -> RealtimeClient` - Get real-time client (Ably)
-- `getPusherClient() -> PusherClient` - Get Pusher client
-- `getConfig() -> SDKConfig?` - Get current configuration
-- `disconnect()` - Disconnect and cleanup
-
-### APIClient
-
-HTTP client for REST API operations.
-
-#### Methods
-
-- `getConfig() async throws -> SDKConfig`
-- `getConversations(filters: ConversationFilters) async throws -> [Conversation]`
-- `getConversation(id: String) async throws -> Conversation`
-- `getMessages(conversationId: String, limit: Int, offset: Int) async throws -> [Message]`
-- `sendMessage(conversationId: String, text: String, attachmentUrl: String?) async throws -> Message`
-- `markAsRead(conversationId: String) async throws`
-- `updateStatus(conversationId: String, status: String) async throws`
-- `registerDevice(token: String, platform: String, deviceInfo: [String: Any]) async throws`
-
-### LiveChatClient
-
-Client for live chat and escalation management.
-
-#### Methods
-
-- `getEscalations(status: String?, limit: Int, offset: Int) async throws -> [Escalation]`
-- `getEscalation(id: String) async throws -> Escalation`
-- `getEscalationMessages(escalationId: String, limit: Int, offset: Int) async throws -> [ChatMessage]`
-- `sendEscalationMessage(escalationId: String, text: String) async throws -> ChatMessage`
-- `endEscalation(escalationId: String) async throws`
-
-### RealtimeClient
-
-Real-time messaging client using Ably.
-
-#### Methods
-
-- `connect(with: String)` - Connect with Ably key
-- `subscribeToConversation(_ conversationId: String, onMessage: @escaping (Message) -> Void)`
-- `unsubscribe(from: String)`
-- `disconnect()`
-
-### PusherClient
-
-Real-time client for live chat using Pusher.
-
-#### Methods
-
-- `connect(key: String, cluster: String)` - Connect to Pusher
-- `subscribeToEscalation(_ escalationId: String, onMessage: @escaping (ChatMessage) -> Void, onTyping: @escaping (Bool) -> Void)`
-- `unsubscribe(from: String)`
-- `disconnect()`
-
-## Troubleshooting
-
-### SDK Not Initializing
-
-Make sure you're calling `initialize()` and waiting for the completion handler before using other SDK features.
-
-### Messages Not Appearing
-
-Check that:
-1. Real-time clients are connected
-2. You're subscribed to the correct conversation/escalation ID
-3. API key has proper permissions
-
-### Push Notifications Not Working
-
-Verify:
-1. Push notification capabilities are enabled in Xcode
-2. APNs certificate is configured correctly
-3. Device token is registered with `registerForPushNotifications()`
-
-## License
-
-Copyright (c) 2024 NeuralNodes. All rights reserved.
-
-This SDK is proprietary software. You may use this SDK only in accordance with the terms of your agreement with NeuralNodes. Unauthorized copying, modification, distribution, or use of this SDK is strictly prohibited.
-
-For licensing inquiries, contact: support@neuralnodes.space
-
-## Support
-
-- Email: support@neuralnodes.space
-- Documentation: https://docs.neuralnodes.space
-- Issues: https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios/issues
 
 ---
 
-Made by [NeuralNodes](https://neuralnodes.space)
+## API Reference
+
+### Core SDK
+
+```swift
+// Initialize
+let sdk = NeuralNodesInbox(apiKey: String)
+sdk.initialize(completion: (Result<SDKConfig, Error>) -> Void)
+
+// Properties
+sdk.isInitialized: Bool
+NeuralNodesInbox.version: String
+
+// Get Clients
+sdk.getAPIClient() -> APIClient
+sdk.getLiveChatClient() -> LiveChatClient
+sdk.getRealtimeClient() -> RealtimeClient
+sdk.getPusherClient() -> PusherClient
+
+// Push Notifications
+sdk.registerForPushNotifications(deviceToken: Data)
+sdk.handlePushNotification([AnyHashable: Any]) -> String?
+
+// Cleanup
+sdk.disconnect()
+```
+
+### APIClient
+
+```swift
+// Configuration
+getConfig() async throws -> SDKConfig
+
+// Conversations
+getConversations(filters: ConversationFilters) async throws -> [Conversation]
+getConversation(id: String) async throws -> Conversation
+getConversationMessages(conversationId: String, limit: Int, offset: Int) async throws -> [Message]
+sendMessage(conversationId: String, text: String) async throws -> Message
+updateConversationStatus(conversationId: String, status: String) async throws
+markAsRead(conversationId: String) async throws
+```
+
+### LiveChatClient
+
+```swift
+getEscalations(limit: Int) async throws -> [Escalation]
+getEscalationMessages(escalationId: String, limit: Int, offset: Int) async throws -> [ChatMessage]
+sendEscalationMessage(escalationId: String, text: String) async throws -> ChatMessage
+endEscalation(escalationId: String) async throws
+```
+
+### RealtimeClient
+
+```swift
+subscribeToConversation(_ conversationId: String, onMessage: @escaping (Message) -> Void)
+unsubscribe(from conversationId: String)
+```
+
+### PusherClient
+
+```swift
+subscribeToEscalation(_ escalationId: String, onMessage: @escaping (ChatMessage) -> Void, onTyping: @escaping (Bool) -> Void)
+unsubscribe(from escalationId: String)
+```
+
+---
+
+## Models
+
+### Conversation
+
+```swift
+public struct Conversation: Identifiable, Codable {
+    public let id: String
+    public let channel: String
+    public let status: String
+    public let customerName: String?
+    public let customerPhone: String?
+    public let customerEmail: String?
+    public let lastMessagePreview: String?
+    public let lastMessageAt: Date?
+    public let unreadCount: Int
+    public let createdAt: Date
+    public let updatedAt: Date
+}
+```
+
+### Message
+
+```swift
+public struct Message: Identifiable, Codable {
+    public let id: String
+    public let conversationId: String
+    public let messageType: String
+    public let messageText: String
+    public let senderType: String
+    public let senderName: String?
+    public let senderId: String?
+    public let isRead: Bool
+    public let readAt: Date?
+    public let createdAt: Date
+}
+```
+
+### Escalation
+
+```swift
+public struct Escalation: Identifiable, Codable {
+    public let id: String
+    public let conversationId: String
+    public let status: String
+    public let reason: String?
+    public let customerName: String?
+    public let lastMessageAt: Date?
+    public let createdAt: Date
+}
+```
+
+### ChatMessage
+
+```swift
+public struct ChatMessage: Identifiable, Codable {
+    public let id: String
+    public let escalationId: String
+    public let messageType: String
+    public let messageText: String
+    public let senderType: String
+    public let senderName: String?
+    public let createdAt: Date
+}
+```
+
+---
+
+## Comparison Table
+
+| Feature | Plug & Play | Component | Headless API |
+|---------|-------------|-----------|--------------|
+| **Setup Time** | 5 minutes | 30 minutes | 2-4 hours |
+| **UI Control** | Low | Medium | Full |
+| **Customization** | Theme only | Layout & Navigation | Everything |
+| **Code Required** | 1 line | 10-50 lines | 100+ lines |
+| **Best For** | Quick setup | Branded apps | Unique designs |
+| **Maintenance** | SDK handles | Shared | You handle |
+
+---
+
+## Best Practices
+
+### 1. Initialize Early
+
+Initialize the SDK in your app's startup sequence:
+
+```swift
+@main
+struct MyApp: App {
+    @StateObject private var appState = AppState()
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(appState)
+        }
+    }
+}
+
+class AppState: ObservableObject {
+    @Published var sdk: NeuralNodesInbox?
+    
+    init() {
+        let sdk = NeuralNodesInbox(apiKey: "your-api-key")
+        sdk.initialize { result in
+            if case .success = result {
+                self.sdk = sdk
+            }
+        }
+    }
+}
+```
+
+### 2. Handle Errors Gracefully
+
+```swift
+do {
+    let conversations = try await apiClient.getConversations()
+} catch {
+    // Show user-friendly error message
+    showError("Unable to load conversations. Please try again.")
+}
+```
+
+### 3. Cleanup on Logout
+
+```swift
+func logout() {
+    sdk.disconnect()
+    // Clear user data
+}
+```
+
+### 4. Use Real-time Subscriptions Wisely
+
+```swift
+// Subscribe when view appears
+.onAppear {
+    realtimeClient.subscribeToConversation(conversationId) { message in
+        // Handle message
+    }
+}
+
+// Unsubscribe when view disappears
+.onDisappear {
+    realtimeClient.unsubscribe(from: conversationId)
+}
+```
+
+---
+
+## Support
+
+- **Documentation:** [https://docs.neuralnodes.com](https://docs.neuralnodes.com)
+- **Email:** support@neuralnodes.com
+- **Issues:** [GitHub Issues](https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios/issues)
+
+---
+
+## License
+
+Copyright © 2024 NeuralNodes. All rights reserved.
+
+This SDK is proprietary software. Unauthorized copying, distribution, or modification is prohibited.
+
+---
+
+## Changelog
+
+### 2.0.0 (2024-04-25)
+- **BREAKING:** Complete SDK architecture redesign
+- **NEW:** Three integration levels: Plug & Play, Component, and Headless API
+- **NEW:** Pre-built UI components (InboxView, ConversationDetailView, LiveChatView, etc.)
+- **NEW:** Headless API for complete customization
+- **NEW:** Public ViewModels for custom implementations
+- **NEW:** Comprehensive README with integration examples
+- Multi-channel inbox support (WhatsApp, Email, SMS, Web Chat)
+- Real-time messaging with Ably and Pusher
+- Live chat escalations
+- Push notifications support
+- Message pagination (15 messages per page)
+- Optimistic updates for instant UI feedback
+- Status management (Active, Pending, Resolved, Closed)
+- iOS 16.0+ support with modern SwiftUI APIs
