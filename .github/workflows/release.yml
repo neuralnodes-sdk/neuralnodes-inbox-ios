@@ -146,13 +146,21 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.next_version.outputs.version }}"
           BUILD_NUMBER="${{ github.run_number }}"
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          
+          # Build number format: {RUN_NUMBER}-{SHORT_SHA}
+          # Example: 1452-a1b2c3d
+          FULL_BUILD_NUMBER="${BUILD_NUMBER}-${SHORT_SHA}"
           
           # Update SDKVersion.swift with version and build number
           sed -i '' "s/version = \".*\"/version = \"$NEW_VERSION\"/" Sources/NeuralNodesInbox/SDKVersion.swift
-          sed -i '' "s/buildNumber: String? = \".*\"/buildNumber: String? = \"$BUILD_NUMBER\"/" Sources/NeuralNodesInbox/SDKVersion.swift
+          sed -i '' "s/buildNumber: String? = \".*\"/buildNumber: String? = \"$FULL_BUILD_NUMBER\"/" Sources/NeuralNodesInbox/SDKVersion.swift
           
           echo "Updated version to $NEW_VERSION"
-          echo "Updated build number to $BUILD_NUMBER"
+          echo "Updated build number to $FULL_BUILD_NUMBER"
+          echo "  - CI Run: $BUILD_NUMBER"
+          echo "  - Commit: $SHORT_SHA"
       
       - name: Build and validate
         run: |
