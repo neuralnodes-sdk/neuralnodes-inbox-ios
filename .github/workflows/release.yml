@@ -145,11 +145,14 @@ jobs:
       - name: Update version in code
         run: |
           NEW_VERSION="${{ steps.next_version.outputs.version }}"
+          BUILD_NUMBER="${{ github.run_number }}"
           
-          # Update SDKVersion.swift
+          # Update SDKVersion.swift with version and build number
           sed -i '' "s/version = \".*\"/version = \"$NEW_VERSION\"/" Sources/NeuralNodesInbox/SDKVersion.swift
+          sed -i '' "s/buildNumber: String? = \".*\"/buildNumber: String? = \"$BUILD_NUMBER\"/" Sources/NeuralNodesInbox/SDKVersion.swift
           
           echo "Updated version to $NEW_VERSION"
+          echo "Updated build number to $BUILD_NUMBER"
       
       - name: Build and validate
         run: |
