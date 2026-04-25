@@ -14,7 +14,8 @@ public struct SDKVersion {
         return "\(name)/\(version) (\(platform); \(systemVersion))"
     }
     
-    public static var buildNumber: String?
+    // Build number set by CI/CD or defaults to "dev" for local builds
+    public static var buildNumber: String? = "dev"
     
     public static var versionWithBuild: String {
         if let build = buildNumber {
