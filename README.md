@@ -584,7 +584,7 @@ func logout() {
 
 ## Support
 
-- **Documentation:** [https://docs.neuralnodes.com](https://docs.neuralnodes.com)
+- **Documentation:** [https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios/blob/main/README.md](https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios/blob/main/README.md)
 - **Email:** support@neuralnodes.com
 - **Issues:** [GitHub Issues](https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios/issues)
 
@@ -597,21 +597,3 @@ Copyright © 2024 NeuralNodes. All rights reserved.
 This SDK is proprietary software. Unauthorized copying, distribution, or modification is prohibited.
 
 ---
-
-## Changelog
-
-### 2.0.0 (2024-04-25)
-- **BREAKING:** Complete SDK architecture redesign
-- **NEW:** Three integration levels: Plug & Play, Component, and Headless API
-- **NEW:** Pre-built UI components (InboxView, ConversationDetailView, LiveChatView, etc.)
-- **NEW:** Headless API for complete customization
-- **NEW:** Public ViewModels for custom implementations
-- **NEW:** Comprehensive README with integration examples
-- Multi-channel inbox support (WhatsApp, Email, SMS, Web Chat)
-- Real-time messaging with Ably and Pusher
-- Live chat escalations
-- Push notifications support
-- Message pagination (15 messages per page)
-- Optimistic updates for instant UI feedback
-- Status management (Active, Pending, Resolved, Closed)
-- iOS 16.0+ support with modern SwiftUI APIs
