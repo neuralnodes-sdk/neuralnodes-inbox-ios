@@ -1,4 +1,5 @@
 {
+  "originHash" : "05060ff5901e5a1e4f2f5974395e2038f2f3833095aa77a3635664a5ca06f114",
   "pins" : [
     {
       "identity" : "ably-cocoa",
@@ -37,6 +38,15 @@
       }
     },
     {
+      "identity" : "neuralnodes-inbox-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios.git",
+      "state" : {
+        "revision" : "319d881524469dcb3144471c639e88c1e879d43d",
+        "version" : "2.0.6"
+      }
+    },
+    {
       "identity" : "nwwebsocket",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pusher/NWWebSocket.git",
@@ -64,5 +74,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

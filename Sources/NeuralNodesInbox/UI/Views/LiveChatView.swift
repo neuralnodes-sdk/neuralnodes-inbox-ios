@@ -13,6 +13,12 @@ public struct LiveChatView: View {
         _viewModel = StateObject(wrappedValue: LiveChatViewModel(escalationId: escalation.id, sdk: sdk))
     }
     
+    // Check if chat is closed or resolved
+    private var isChatClosed: Bool {
+        let status = escalation.status.lowercased()
+        return status == "closed" || status == "resolved"
+    }
+    
     public var body: some View {
         VStack(spacing: 0) {
             // Connection Status Banner
@@ -94,15 +100,29 @@ public struct LiveChatView: View {
             
             // Input Bar - Fixed at bottom
             Divider()
-            MessageInputBar(
-                text: $viewModel.messageText,
-                onSend: {
-                    Task {
-                        await viewModel.sendMessage()
+            
+            // Only show input if chat is not closed
+            if !isChatClosed {
+                MessageInputBar(
+                    text: $viewModel.messageText,
+                    onSend: {
+                        Task {
+                            await viewModel.sendMessage()
+                        }
                     }
+                )
+                .background(Color(.systemBackground))
+            } else {
+                // Disabled input for closed chats
+                HStack {
+                    Text("This conversation has been closed")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding()
                 }
-            )
-            .background(Color(.systemBackground))
+                .background(Color(.systemGray6))
+            }
         }
         .navigationBarHidden(false)
         .navigationBarBackButtonHidden(false)
@@ -114,8 +134,11 @@ public struct LiveChatView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
-                    Button(action: { viewModel.endChat() }) {
-                        Label("End Chat", systemImage: "xmark.circle")
+                    // Only show End Chat if not already closed
+                    if !isChatClosed {
+                        Button(action: { viewModel.endChat() }) {
+                            Label("End Chat", systemImage: "xmark.circle")
+                        }
                     }
                     
                     Button(action: { viewModel.transferChat() }) {

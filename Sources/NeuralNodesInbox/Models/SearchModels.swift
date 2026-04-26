@@ -136,6 +136,7 @@ public struct ConversationSearchFilters {
     public let query: String
     public let channel: String?
     public let status: String?
+    public let liveChat: Bool?
     public let limit: Int
     public let offset: Int
     
@@ -143,12 +144,14 @@ public struct ConversationSearchFilters {
         query: String,
         channel: String? = nil,
         status: String? = nil,
+        liveChat: Bool? = nil,
         limit: Int = 50,
         offset: Int = 0
     ) {
         self.query = query
         self.channel = channel
         self.status = status
+        self.liveChat = liveChat
         self.limit = limit
         self.offset = offset
     }
@@ -166,6 +169,9 @@ public struct ConversationSearchFilters {
         }
         if let status = status {
             items.append(URLQueryItem(name: "status", value: status))
+        }
+        if let liveChat = liveChat {
+            items.append(URLQueryItem(name: "live_chat", value: liveChat ? "true" : "false"))
         }
         
         return items
