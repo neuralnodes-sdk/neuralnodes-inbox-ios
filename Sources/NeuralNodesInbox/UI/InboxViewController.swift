@@ -263,7 +263,13 @@ public class InboxViewController: UIViewController {
     }
     
     private func subscribeToUpdates() {
-        realtimeClient.subscribeToInbox { [weak self] in
+        // Get clientId from API client
+        guard let clientId = apiClient.getClientId() else {
+            print("⚠️ Cannot subscribe to inbox updates - clientId not available")
+            return
+        }
+        
+        realtimeClient.subscribeToInbox(clientId: clientId) { [weak self] in
             self?.loadConversations()
         }
     }

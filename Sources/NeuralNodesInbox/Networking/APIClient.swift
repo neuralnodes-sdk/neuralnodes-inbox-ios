@@ -89,6 +89,10 @@ public class APIClient {
         return response.config
     }
     
+    public func getClientId() -> String? {
+        return clientId
+    }
+    
     // MARK: - Conversations
     
     public func getConversations(filters: ConversationFilters = ConversationFilters()) async throws -> [Conversation] {
@@ -173,7 +177,7 @@ public class APIClient {
     
     // MARK: - Device Registration
     
-    public func registerDevice(token: String, platform: String, deviceInfo: [String: Any] = [:]) async throws {
+    public func registerDevice(token: String, platform: String, deviceId: String? = nil, deviceInfo: [String: Any] = [:]) async throws {
         struct Response: Codable {
             let success: Bool
         }
@@ -188,11 +192,16 @@ public class APIClient {
         }
         
         // Send as query parameters (matching Android implementation)
-        let queryItems = [
+        var queryItems = [
             URLQueryItem(name: "device_token", value: token),
             URLQueryItem(name: "platform", value: platform),
             URLQueryItem(name: "device_info", value: deviceInfoJson)
         ]
+        
+        // Add device_id if provided
+        if let deviceId = deviceId {
+            queryItems.append(URLQueryItem(name: "device_id", value: deviceId))
+        }
         
         let _: Response = try await request(
             path: "/sdk/register-device",
@@ -297,6 +306,7 @@ public class APIClient {
         request.setValue(SDKVersion.userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue(SDKVersion.version, forHTTPHeaderField: "X-SDK-Version")
         request.setValue("iOS", forHTTPHeaderField: "X-SDK-Platform")
+        request.setValue("IOS", forHTTPHeaderField: "X-Client-Type")
         
         if let body = body {
             request.httpBody = try encoder.encode(body)
@@ -308,26 +318,25 @@ public class APIClient {
             throw APIError.invalidResponse
         }
         
-        // Log request and response
-        print("📡 \(method) \(path)")
-        print("   Status: \(httpResponse.statusCode)")
-        
         guard (200...299).contains(httpResponse.statusCode) else {
-            if let jsonString = String(data: data, encoding: .utf8) {
-                print("   ❌ Error Response: \(jsonString)")
+            // Try to parse error message from response
+            var errorMessage: String?
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let detail = json["detail"] as? String {
+                    errorMessage = detail
+                } else if let message = json["message"] as? String {
+                    errorMessage = message
+                } else if let error = json["error"] as? String {
+                    errorMessage = error
+                }
             }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        // Log successful response
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("   ✅ Response: \(jsonString)")
+            
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: errorMessage)
         }
         
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            print("   ❌ Decoding Error: \(error)")
             throw APIError.decodingError(error)
         }
     }
@@ -339,7 +348,7 @@ public enum APIError: Error, LocalizedError {
     case invalidURL
     case invalidResponse
     case clientIdNotSet
-    case httpError(statusCode: Int)
+    case httpError(statusCode: Int, message: String?)
     case decodingError(Error)
     case networkError(Error)
     
@@ -351,7 +360,10 @@ public enum APIError: Error, LocalizedError {
             return "Invalid response from server"
         case .clientIdNotSet:
             return "Client ID not set. SDK must be initialized first."
-        case .httpError(let statusCode):
+        case .httpError(let statusCode, let message):
+            if let message = message {
+                return message
+            }
             return "HTTP error: \(statusCode)"
         case .decodingError(let error):
             return "Decoding error: \(error.localizedDescription)"

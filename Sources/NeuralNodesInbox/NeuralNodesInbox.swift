@@ -26,6 +26,22 @@ public class NeuralNodesInbox {
         Task {
             do {
                 let config = try await apiClient.getConfig()
+                
+                // Check if SDK is enabled
+                guard config.enabled else {
+                    let error = NSError(
+                        domain: "com.neuralnodes.sdk",
+                        code: 403,
+                        userInfo: [
+                            NSLocalizedDescriptionKey: "Mobile SDK is not enabled for this account. Please contact support to enable it."
+                        ]
+                    )
+                    await MainActor.run {
+                        completion(.failure(error))
+                    }
+                    return
+                }
+                
                 self.config = config
                 
                 if let ablyKey = config.ablyKey {

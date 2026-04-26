@@ -12,6 +12,7 @@ public class InboxViewModel: ObservableObject {
     
     private let sdk: NeuralNodesInbox
     private var cancellables = Set<AnyCancellable>()
+    private var hasSubscribed = false
     
     public init(sdk: NeuralNodesInbox) {
         self.sdk = sdk
@@ -26,6 +27,27 @@ public class InboxViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+    }
+    
+    private func setupRealtimeSubscription() {
+        // Only subscribe once
+        guard !hasSubscribed else { return }
+        
+        let realtimeClient = sdk.getRealtimeClient()
+        let apiClient = sdk.getAPIClient()
+        
+        // Get clientId from API client
+        guard let clientId = apiClient.getClientId() else {
+            return
+        }
+        
+        realtimeClient.subscribeToInbox(clientId: clientId) { [weak self] in
+            Task { @MainActor in
+                await self?.loadConversations()
+            }
+        }
+        
+        hasSubscribed = true
     }
     
     public func loadConversations() async {
@@ -50,6 +72,9 @@ public class InboxViewModel: ObservableObject {
             
             conversations = fetchedConversations
             isLoading = false
+            
+            // Setup real-time subscription after first successful load
+            setupRealtimeSubscription()
         } catch {
             errorMessage = error.localizedDescription
             showError = true

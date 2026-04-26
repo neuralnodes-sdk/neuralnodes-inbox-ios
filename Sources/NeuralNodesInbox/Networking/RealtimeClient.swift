@@ -129,17 +129,20 @@ public class RealtimeClient {
         NeuralNodesLogger.info("Unsubscribed from conversation: \(conversationId)")
     }
     
-    public func subscribeToInbox(onUpdate: @escaping () -> Void) {
+    public func subscribeToInbox(clientId: String, onUpdate: @escaping () -> Void) {
         guard let ably = ably else {
-            print("⚠️ Ably not connected")
             return
         }
         
-        let channel = ably.channels.get("inbox-updates")
-        channel.subscribe { _ in
+        // Subscribe to client-specific inbox updates channel
+        let channelName = "inbox-updates-\(clientId)"
+        let channel = ably.channels.get(channelName)
+        
+        // Subscribe to all events on the inbox-updates channel
+        channel.subscribe { message in
             onUpdate()
         }
         
-        NeuralNodesLogger.info("Subscribed to inbox updates")
+        subscribedChannels["inbox-updates"] = channel
     }
 }
