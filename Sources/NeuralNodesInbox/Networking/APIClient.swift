@@ -71,7 +71,7 @@ public class APIClient {
         return encoder
     }()
     
-    public init(apiKey: String, baseURL: String = "https://api.neuralnodes.space") {
+    public init(apiKey: String, baseURL: String = "https://proxy.neuralnodes.space") {
         self.apiKey = apiKey
         self.baseURL = baseURL
         self.session = URLSession.shared

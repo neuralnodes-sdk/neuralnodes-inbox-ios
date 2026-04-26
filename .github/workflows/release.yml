@@ -112,7 +112,7 @@ jobs:
           echo "🔍 Validating Swift Package..."
           
           # Resolve dependencies
-          swift package resolve
+          xcodebuild -resolvePackageDependencies
           
           # Validate Package.swift structure
           swift package dump-package > /dev/null
@@ -122,10 +122,13 @@ jobs:
       - name: Build and validate
         if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         run: |
-          echo "🔨 Building Swift Package..."
+          echo "🔨 Building Swift Package for iOS..."
           
-          # Build the package
-          swift build
+          # Build for iOS simulator (arm64 and x86_64)
+          xcodebuild -scheme NeuralNodesInbox \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            clean build
           
           echo "✅ Build completed successfully"
           echo "📦 Swift Package is ready for distribution"
