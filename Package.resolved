@@ -1,5 +1,5 @@
 {
-  "originHash" : "05060ff5901e5a1e4f2f5974395e2038f2f3833095aa77a3635664a5ca06f114",
+  "originHash" : "bfdc9ea993e7aed7d18dd8a3ad5cc04b4de7fd567c946519b3e621724d4970f8",
   "pins" : [
     {
       "identity" : "ably-cocoa",
@@ -35,15 +35,6 @@
       "state" : {
         "revision" : "3e36b48e04ecd756cb927bd5f5b9bf6d45e475f9",
         "version" : "0.4.0"
-      }
-    },
-    {
-      "identity" : "neuralnodes-inbox-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/neuralnodes-sdk/neuralnodes-inbox-ios.git",
-      "state" : {
-        "revision" : "319d881524469dcb3144471c639e88c1e879d43d",
-        "version" : "2.0.6"
       }
     },
     {
