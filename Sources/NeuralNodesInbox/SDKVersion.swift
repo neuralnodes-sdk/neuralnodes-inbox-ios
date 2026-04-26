@@ -2,7 +2,7 @@ import Foundation
 
 /// SDK Version Information
 public struct SDKVersion {
-    public static let version = "2.0.9"
+    public static let version = "2.0.10"
     
     public static let name = "NeuralNodesInbox-iOS"
     
@@ -15,7 +15,7 @@ public struct SDKVersion {
     }
     
     // Build number set by CI/CD or defaults to "dev" for local builds
-    public static var buildNumber: String? = "15-c9b4b79"
+    public static var buildNumber: String? = "16-43588b1"
     
     public static var versionWithBuild: String {
         if let build = buildNumber {
