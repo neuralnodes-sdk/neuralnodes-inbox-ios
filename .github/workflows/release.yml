@@ -1,20 +1,12 @@
 name: Release and Tag
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., 1.0.0)'
-        required: true
-        type: string
-      release_type:
-        description: 'Release type'
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'Sources/NeuralNodesInbox/SDKVersion.swift'
 
 jobs:
   release:
@@ -84,71 +76,28 @@ jobs:
         with:
           xcode-version: latest-stable
       
-      - name: Get current version
-        id: current_version
+      - name: Get version from SDKVersion.swift
+        id: get_version
         run: |
           # Extract version from SDKVersion.swift
-          CURRENT_VERSION=$(grep -o 'version = "[^"]*"' Sources/NeuralNodesInbox/SDKVersion.swift | cut -d'"' -f2)
-          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "Current version: $CURRENT_VERSION"
+          VERSION=$(grep -o 'version = "[^"]*"' Sources/NeuralNodesInbox/SDKVersion.swift | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version from SDKVersion.swift: $VERSION"
       
-      - name: Calculate next version
-        id: next_version
+      - name: Check if tag exists
+        id: check_tag
         run: |
-          CURRENT="${{ steps.current_version.outputs.current }}"
-          
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            # Manual version specified
-            NEW_VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ steps.get_version.outputs.version }}"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Tag v$VERSION already exists, skipping release"
           else
-            # Calculate based on release type
-            IFS='.' read -r -a version_parts <<< "$CURRENT"
-            MAJOR="${version_parts[0]}"
-            MINOR="${version_parts[1]}"
-            PATCH="${version_parts[2]}"
-            
-            case "${{ github.event.inputs.release_type }}" in
-              major)
-                MAJOR=$((MAJOR + 1))
-                MINOR=0
-                PATCH=0
-                ;;
-              minor)
-                MINOR=$((MINOR + 1))
-                PATCH=0
-                ;;
-              patch)
-                PATCH=$((PATCH + 1))
-                ;;
-            esac
-            
-            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Tag v$VERSION does not exist, proceeding with release"
           fi
-          
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "Next version: $NEW_VERSION"
-      
-      - name: Update version in code
-        run: |
-          NEW_VERSION="${{ steps.next_version.outputs.version }}"
-          BUILD_NUMBER="${{ github.run_number }}"
-          SHORT_SHA="${{ github.sha }}"
-          SHORT_SHA="${SHORT_SHA:0:7}"
-          
-          # Build number format: {RUN_NUMBER}-{SHORT_SHA}
-          # Example: 1452-a1b2c3d
-          FULL_BUILD_NUMBER="${BUILD_NUMBER}-${SHORT_SHA}"
-          
-          # Update SDKVersion.swift with version and build number
-          sed -i '' "s/version = \".*\"/version = \"$NEW_VERSION\"/" Sources/NeuralNodesInbox/SDKVersion.swift
-          sed -i '' "s/buildNumber: String? = \".*\"/buildNumber: String? = \"$FULL_BUILD_NUMBER\"/" Sources/NeuralNodesInbox/SDKVersion.swift
-          
-          echo "Updated version to $NEW_VERSION"
-          echo "Updated build number to $FULL_BUILD_NUMBER"
-          echo "  - CI Run: $BUILD_NUMBER"
-          echo "  - Commit: $SHORT_SHA"
       
       - name: Build and validate
+        if: steps.check_tag.outputs.exists == 'false'
         run: |
           # Validate the Swift Package
           swift package resolve
@@ -159,24 +108,18 @@ jobs:
           echo "✅ Package validation completed successfully"
           echo "📦 Swift Package is ready for distribution"
       
-      - name: Commit version bump
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Sources/NeuralNodesInbox/SDKVersion.swift
-          git commit -m "chore: bump version to ${{ steps.next_version.outputs.version }}" || echo "No changes to commit"
-          git push origin HEAD:${{ github.ref_name }}
-      
       - name: Create Git tag
+        if: steps.check_tag.outputs.exists == 'false'
         run: |
-          VERSION="${{ steps.next_version.outputs.version }}"
+          VERSION="${{ steps.get_version.outputs.version }}"
           git tag -a "v$VERSION" -m "Release version $VERSION"
           git push origin "v$VERSION"
       
       - name: Generate changelog
+        if: steps.check_tag.outputs.exists == 'false'
         id: changelog
         run: |
-          VERSION="${{ steps.next_version.outputs.version }}"
+          VERSION="${{ steps.get_version.outputs.version }}"
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           
           if [ -z "$PREV_TAG" ]; then
@@ -191,10 +134,11 @@ jobs:
           echo "Changelog generated"
       
       - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.next_version.outputs.version }}
-          name: Release v${{ steps.next_version.outputs.version }}
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
           body_path: CHANGELOG.txt
           draft: false
           prerelease: false
@@ -202,22 +146,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Post-release summary
+        if: steps.check_tag.outputs.exists == 'false'
         run: |
-          echo "✅ Release v${{ steps.next_version.outputs.version }} created successfully!"
+          echo "✅ Release v${{ steps.get_version.outputs.version }} created successfully!"
           echo ""
           echo "📦 Installation instructions:"
           echo ""
           echo "Add to your Package.swift:"
           echo ""
           echo "dependencies: ["
-          echo "    .package(url: \"https://github.com/${{ github.repository }}.git\", from: \"${{ steps.next_version.outputs.version }}\")"
+          echo "    .package(url: \"https://github.com/${{ github.repository }}.git\", from: \"${{ steps.get_version.outputs.version }}\")"
           echo "]"
           echo ""
           echo "Or in Xcode:"
           echo "File > Add Package Dependencies > Enter: https://github.com/${{ github.repository }}.git"
       
       - name: Notify Slack - Build Success
-        if: success()
+        if: success() && steps.check_tag.outputs.exists == 'false'
         uses: slackapi/slack-github-action@v1.25.0
         with:
           payload: |
@@ -240,7 +185,7 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Version:*\nv${{ steps.next_version.outputs.version }}"
+                      "text": "*Version:*\nv${{ steps.get_version.outputs.version }}"
                     },
                     {
                       "type": "mrkdwn",
@@ -256,7 +201,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Installation:*\n```dependencies: [\n    .package(url: \"https://github.com/${{ github.repository }}.git\", from: \"${{ steps.next_version.outputs.version }}\")\n]```"
+                    "text": "*Installation:*\n```dependencies: [\n    .package(url: \"https://github.com/${{ github.repository }}.git\", from: \"${{ steps.get_version.outputs.version }}\")\n]```"
                   }
                 },
                 {
@@ -268,7 +213,7 @@ jobs:
                         "type": "plain_text",
                         "text": "View Release"
                       },
-                      "url": "${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ steps.next_version.outputs.version }}"
+                      "url": "${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ steps.get_version.outputs.version }}"
                     },
                     {
                       "type": "button",
