@@ -594,6 +594,7 @@ public struct ConversationDetailView: View {
                         lastMessagePreview: result.messageText,
                         unreadCount: 0,
                         status: result.conversationStatus ?? "active",
+                        lastMessageAt: result.createdAt,
                         createdAt: result.createdAt,
                         updatedAt: result.createdAt
                     )

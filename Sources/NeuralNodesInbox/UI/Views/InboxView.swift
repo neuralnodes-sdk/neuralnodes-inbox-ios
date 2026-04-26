@@ -207,6 +207,7 @@ public struct InboxView: View {
             lastMessagePreview: result.lastMessagePreview,
             unreadCount: result.unreadCount,
             status: result.status,
+            lastMessageAt: result.lastMessageAt,
             createdAt: now,
             updatedAt: result.lastMessageAt ?? now
         )

@@ -13,7 +13,9 @@ extension Conversation {
     }
     
     public var timeAgo: String {
-        let seconds = Int(Date().timeIntervalSince(updatedAt))
+        // Use lastMessageAt if available, otherwise fall back to updatedAt
+        let referenceDate = lastMessageAt ?? updatedAt
+        let seconds = Int(Date().timeIntervalSince(referenceDate))
         
         if seconds < 60 {
             return "Just now"

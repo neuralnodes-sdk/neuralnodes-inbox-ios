@@ -10,6 +10,7 @@ public struct Conversation: Codable, Identifiable {
     public let lastMessagePreview: String?
     public let unreadCount: Int
     public let status: String
+    public let lastMessageAt: Date?
     public let createdAt: Date
     public let updatedAt: Date
     
@@ -22,6 +23,7 @@ public struct Conversation: Codable, Identifiable {
         case lastMessagePreview = "last_message_preview"
         case unreadCount = "unread_count"
         case status
+        case lastMessageAt = "last_message_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
