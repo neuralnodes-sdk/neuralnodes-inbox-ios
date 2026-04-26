@@ -79,11 +79,7 @@ public struct MessageBubble<T: MessageProtocol>: View {
                         .background(
                             Group {
                                 if message.isFromAgent {
-                                    LinearGradient(
-                                        colors: [Color(hex: "#667eea"), Color(hex: "#764ba2")],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
+                                    Color(hex: "#4A6EE0")  // Solid blue color instead of gradient
                                 } else {
                                     (colorScheme == .dark ? Color(.systemGray5) : Color(.systemGray6))
                                 }

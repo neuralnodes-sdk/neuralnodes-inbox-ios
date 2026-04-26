@@ -82,13 +82,7 @@ public struct ConversationRow: View {
                             .padding(.vertical, 4)
                             .background(
                                 Capsule()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color(hex: "#667eea"), Color(hex: "#764ba2")],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
+                                    .fill(Color(hex: "#4A6EE0"))  // Solid blue color
                             )
                     }
                     

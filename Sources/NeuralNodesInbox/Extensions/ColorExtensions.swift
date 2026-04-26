@@ -1,9 +1,11 @@
 import SwiftUI
 
 public extension Color {
-    // Primary Colors
-    static let primaryPurple = Color(hex: "#7C3AED")
-    static let primaryIndigo = Color(hex: "#4F46E5")
+    // Primary Colors - Updated to #4A6EE0
+    static let primaryPurple = Color(hex: "#4A6EE0")  // Main brand color
+    static let primaryIndigo = Color(hex: "#3B5AC7")  // Darker shade for contrast
+    static let primaryLight = Color(hex: "#6B8EF5")   // Lighter shade
+    static let primaryDark = Color(hex: "#2E4BA8")    // Darker shade for hover states
     
     // Status Colors
     static let successGreen = Color(hex: "#10B981")
