@@ -1,10 +1,6 @@
 name: Release and Tag
 
 on:
-  push:
-    branches:
-      - main
-      - master
   workflow_dispatch:
     inputs:
       version:
@@ -101,41 +97,31 @@ jobs:
         run: |
           CURRENT="${{ steps.current_version.outputs.current }}"
           
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            if [ -n "${{ github.event.inputs.version }}" ]; then
-              # Manual version specified
-              NEW_VERSION="${{ github.event.inputs.version }}"
-            else
-              # Calculate based on release type
-              IFS='.' read -r -a version_parts <<< "$CURRENT"
-              MAJOR="${version_parts[0]}"
-              MINOR="${version_parts[1]}"
-              PATCH="${version_parts[2]}"
-              
-              case "${{ github.event.inputs.release_type }}" in
-                major)
-                  MAJOR=$((MAJOR + 1))
-                  MINOR=0
-                  PATCH=0
-                  ;;
-                minor)
-                  MINOR=$((MINOR + 1))
-                  PATCH=0
-                  ;;
-                patch)
-                  PATCH=$((PATCH + 1))
-                  ;;
-              esac
-              
-              NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-            fi
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            # Manual version specified
+            NEW_VERSION="${{ github.event.inputs.version }}"
           else
-            # Auto-increment patch version for push to main
+            # Calculate based on release type
             IFS='.' read -r -a version_parts <<< "$CURRENT"
             MAJOR="${version_parts[0]}"
             MINOR="${version_parts[1]}"
             PATCH="${version_parts[2]}"
-            PATCH=$((PATCH + 1))
+            
+            case "${{ github.event.inputs.release_type }}" in
+              major)
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                PATCH=0
+                ;;
+              minor)
+                MINOR=$((MINOR + 1))
+                PATCH=0
+                ;;
+              patch)
+                PATCH=$((PATCH + 1))
+                ;;
+            esac
+            
             NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           fi
           
