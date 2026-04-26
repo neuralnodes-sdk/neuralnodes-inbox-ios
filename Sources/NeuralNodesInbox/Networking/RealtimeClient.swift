@@ -138,8 +138,8 @@ public class RealtimeClient {
         let channelName = "inbox-updates-\(clientId)"
         let channel = ably.channels.get(channelName)
         
-        // Subscribe to all events on the inbox-updates channel
-        channel.subscribe { message in
+        // Subscribe to new-message events
+        channel.subscribe("new-message") { message in
             onUpdate()
         }
         
@@ -155,8 +155,13 @@ public class RealtimeClient {
         let channelName = "live-chat-\(clientId)"
         let channel = ably.channels.get(channelName)
         
-        // Subscribe to all events on the live-chat channel
-        channel.subscribe { message in
+        // Subscribe to escalation-created events
+        channel.subscribe("escalation-created") { message in
+            onUpdate()
+        }
+        
+        // Subscribe to new-message events
+        channel.subscribe("new-message") { message in
             onUpdate()
         }
         
