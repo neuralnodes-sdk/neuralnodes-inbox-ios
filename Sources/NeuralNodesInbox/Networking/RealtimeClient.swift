@@ -145,4 +145,21 @@ public class RealtimeClient {
         
         subscribedChannels["inbox-updates"] = channel
     }
+    
+    public func subscribeToLiveChat(clientId: String, onUpdate: @escaping () -> Void) {
+        guard let ably = ably else {
+            return
+        }
+        
+        // Subscribe to client-specific live chat channel
+        let channelName = "live-chat-\(clientId)"
+        let channel = ably.channels.get(channelName)
+        
+        // Subscribe to all events on the live-chat channel
+        channel.subscribe { message in
+            onUpdate()
+        }
+        
+        subscribedChannels["live-chat"] = channel
+    }
 }

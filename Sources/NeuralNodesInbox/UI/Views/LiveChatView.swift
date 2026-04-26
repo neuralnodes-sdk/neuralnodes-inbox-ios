@@ -28,41 +28,38 @@ public struct LiveChatView: View {
             
             // Messages List
             ScrollViewReader { proxy in
-                GeometryReader { geometry in
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(spacing: 12) {
-                            // Load more indicator at top
-                            if viewModel.hasMoreMessages && viewModel.messages.count >= 15 {
-                                HStack {
-                                    if viewModel.isLoadingMore {
-                                        ProgressView()
-                                            .scaleEffect(0.8)
-                                            .padding(.vertical, 8)
-                                    } else {
-                                        Color.clear
-                                            .frame(height: 1)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                .id("loadMoreTrigger")
-                                .onAppear {
-                                    // Only load more if we already have messages (not initial load)
-                                    if !viewModel.messages.isEmpty {
-                                        Task {
-                                            await viewModel.loadMoreMessages()
-                                        }
-                                    }
+                ScrollView(.vertical, showsIndicators: true) {
+                    LazyVStack(spacing: 12) {
+                        // Load more indicator at top
+                        if viewModel.hasMoreMessages && viewModel.messages.count >= 15 {
+                            HStack {
+                                if viewModel.isLoadingMore {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .padding(.vertical, 8)
+                                } else {
+                                    Color.clear
+                                        .frame(height: 1)
                                 }
                             }
-                            
-                            ForEach(viewModel.messages) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
+                            .frame(maxWidth: .infinity)
+                            .id("loadMoreTrigger")
+                            .onAppear {
+                                // Only load more if we already have messages (not initial load)
+                                if !viewModel.messages.isEmpty {
+                                    Task {
+                                        await viewModel.loadMoreMessages()
+                                    }
+                                }
                             }
                         }
-                        .padding()
-                        .frame(minHeight: geometry.size.height, alignment: .bottom)
+                        
+                        ForEach(viewModel.messages) { message in
+                            MessageBubble(message: message)
+                                .id(message.id)
+                        }
                     }
+                    .padding()
                 }
                 .onChange(of: viewModel.scrollToMessageId) { messageId in
                     if let messageId = messageId {

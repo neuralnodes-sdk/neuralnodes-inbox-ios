@@ -7,9 +7,31 @@ public class LiveChatListViewModel: ObservableObject {
     @Published public var isLoading = false
     
     private let sdk: NeuralNodesInbox
+    private var hasSubscribed = false
     
     public init(sdk: NeuralNodesInbox) {
         self.sdk = sdk
+    }
+    
+    private func setupRealtimeSubscription() {
+        // Only subscribe once
+        guard !hasSubscribed else { return }
+        
+        let realtimeClient = sdk.getRealtimeClient()
+        let apiClient = sdk.getAPIClient()
+        
+        // Get clientId from API client
+        guard let clientId = apiClient.getClientId() else {
+            return
+        }
+        
+        realtimeClient.subscribeToLiveChat(clientId: clientId) { [weak self] in
+            Task { @MainActor in
+                await self?.loadEscalations()
+            }
+        }
+        
+        hasSubscribed = true
     }
     
     public func loadEscalations(status: String? = nil) async {
@@ -26,6 +48,9 @@ public class LiveChatListViewModel: ObservableObject {
             }
             
             isLoading = false
+            
+            // Setup real-time subscription after first successful load
+            setupRealtimeSubscription()
         } catch {
             isLoading = false
         }
