@@ -8,7 +8,7 @@ public struct Escalation: Codable, Identifiable {
     public let leadEmail: String?
     public let status: String
     public let priority: String?
-    public let unreadCount: Int
+    public let unreadCount: Int?
     public let lastMessagePreview: String?
     public let conversationHistory: [ConversationHistoryItem]?
     public let lastMessageAt: Date?

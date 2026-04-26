@@ -308,6 +308,12 @@ public class APIClient {
         request.setValue("iOS", forHTTPHeaderField: "X-SDK-Platform")
         request.setValue("IOS", forHTTPHeaderField: "X-Client-Type")
         
+        // Add cache-busting headers for GET requests to prevent Cloudflare caching
+        if method == "GET" {
+            request.setValue("no-cache, no-store, must-revalidate", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        }
+        
         if let body = body {
             request.httpBody = try encoder.encode(body)
         }

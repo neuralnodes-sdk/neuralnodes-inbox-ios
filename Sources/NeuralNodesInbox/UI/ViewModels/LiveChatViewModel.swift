@@ -11,6 +11,7 @@ public class LiveChatViewModel: ObservableObject {
     @Published public var isLoadingMore = false
     @Published public var hasMoreMessages = true
     @Published public var scrollToMessageId: String?
+    @Published public var currentStatus: String
     
     public let escalationId: String
     private let sdk: NeuralNodesInbox
@@ -21,6 +22,7 @@ public class LiveChatViewModel: ObservableObject {
     public init(escalationId: String, sdk: NeuralNodesInbox) {
         self.escalationId = escalationId
         self.sdk = sdk
+        self.currentStatus = "active" // Default, will be updated when loading
     }
     
     public func connect() async {
@@ -31,16 +33,35 @@ public class LiveChatViewModel: ObservableObject {
             // Subscribe to Pusher channel
             let pusherClient = sdk.getPusherClient()
             pusherClient.subscribeToEscalation(escalationId, onMessage: { [weak self] message in
+                print("📬 [LIVE CHAT VM] Received message from Pusher: \(message.messageText)")
                 Task { @MainActor in
                     guard let self = self else { return }
                     
-                    // Avoid duplicates - check if message already exists
-                    guard !self.messages.contains(where: { $0.id == message.id }) else {
+                    print("🔍 [LIVE CHAT VM] Checking for duplicates...")
+                    
+                    // Check if message already exists by ID
+                    if self.messages.contains(where: { $0.id == message.id }) {
+                        print("⚠️ [LIVE CHAT VM] Message with ID \(message.id) already exists, skipping")
                         return
                     }
                     
+                    // Also check for duplicates by content and timestamp (within 2 seconds)
+                    // This handles the case where we sent the message and it comes back via Pusher
+                    let isDuplicate = self.messages.contains { existingMsg in
+                        existingMsg.messageText == message.messageText &&
+                        existingMsg.senderType == message.senderType &&
+                        abs(existingMsg.createdAt.timeIntervalSince(message.createdAt)) < 2.0
+                    }
+                    
+                    if isDuplicate {
+                        print("⚠️ [LIVE CHAT VM] Duplicate message detected by content/timestamp, skipping")
+                        return
+                    }
+                    
+                    print("➕ [LIVE CHAT VM] Adding message to list")
                     self.messages.append(message)
                     self.scrollToMessageId = message.id
+                    print("✅ [LIVE CHAT VM] Message added, total messages: \(self.messages.count)")
                 }
             }, onTyping: { [weak self] isTyping in
                 Task { @MainActor in
@@ -59,25 +80,41 @@ public class LiveChatViewModel: ObservableObject {
     }
     
     public func loadMessages() async {
+        print("📥 [LIVE CHAT VM] loadMessages started for escalation: \(escalationId)")
         currentOffset = 0
         hasMoreMessages = true
         isInitialLoad = true
         
         do {
             let liveChatClient = sdk.getLiveChatClient()
+            
+            // Load escalation details to get current status
+            print("🌐 [LIVE CHAT VM] Fetching escalation details...")
+            let escalation = try await liveChatClient.getEscalation(id: escalationId)
+            currentStatus = escalation.status
+            print("✅ [LIVE CHAT VM] Escalation status: \(currentStatus)")
+            
+            print("🌐 [LIVE CHAT VM] Fetching messages...")
             let fetchedMessages = try await liveChatClient.getEscalationMessages(
                 escalationId: escalationId,
                 limit: pageSize,
                 offset: currentOffset
             )
             
+            print("✅ [LIVE CHAT VM] Received \(fetchedMessages.count) messages")
             messages = fetchedMessages.sorted { $0.createdAt < $1.createdAt }
             hasMoreMessages = fetchedMessages.count == pageSize
             currentOffset = pageSize
             
+            // Mark messages as read
+            print("📖 [LIVE CHAT VM] Marking messages as read...")
+            try? await liveChatClient.markEscalationMessagesRead(escalationId: escalationId)
+            print("✅ [LIVE CHAT VM] Messages marked as read")
+            
             // Scroll to bottom after messages loaded
             if let lastMessage = messages.last {
                 scrollToMessageId = lastMessage.id
+                print("📜 [LIVE CHAT VM] Scrolling to last message: \(lastMessage.id)")
             }
             
             // Mark as no longer initial load after a delay
@@ -85,7 +122,7 @@ public class LiveChatViewModel: ObservableObject {
                 self.isInitialLoad = false
             }
         } catch {
-            // Silently fail
+            print("❌ [LIVE CHAT VM] Error loading messages: \(error)")
         }
     }
     
@@ -179,14 +216,55 @@ public class LiveChatViewModel: ObservableObject {
         }
     }
     
-    public func endChat() {
-        Task {
-            do {
-                let liveChatClient = sdk.getLiveChatClient()
-                try await liveChatClient.endEscalation(escalationId: escalationId)
-            } catch {
-                // Silently fail
-            }
+    public func endChat(reason: String? = nil) async {
+        do {
+            let liveChatClient = sdk.getLiveChatClient()
+            try await liveChatClient.endEscalation(escalationId: escalationId, reason: reason)
+            currentStatus = "closed"
+            // Return true to indicate success
+        } catch {
+            // Silently fail
+        }
+    }
+    
+    public func acceptChat() async {
+        do {
+            let liveChatClient = sdk.getLiveChatClient()
+            try await liveChatClient.updateEscalationStatus(escalationId: escalationId, status: "active")
+            currentStatus = "active"
+        } catch {
+            // Silently fail
+        }
+    }
+    
+    public func resolveChat(notes: String? = nil) async {
+        do {
+            let liveChatClient = sdk.getLiveChatClient()
+            try await liveChatClient.resolveEscalation(escalationId: escalationId, notes: notes)
+            currentStatus = "resolved"
+            // Return true to indicate success
+        } catch {
+            // Silently fail
+        }
+    }
+    
+    public func closeChat() async {
+        do {
+            let liveChatClient = sdk.getLiveChatClient()
+            try await liveChatClient.updateEscalationStatus(escalationId: escalationId, status: "closed")
+            currentStatus = "closed"
+        } catch {
+            // Silently fail
+        }
+    }
+    
+    public func reopenChat() async {
+        do {
+            let liveChatClient = sdk.getLiveChatClient()
+            try await liveChatClient.updateEscalationStatus(escalationId: escalationId, status: "active")
+            currentStatus = "active"
+        } catch {
+            // Silently fail
         }
     }
     

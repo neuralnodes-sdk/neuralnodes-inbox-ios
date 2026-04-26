@@ -4,6 +4,12 @@ public struct LiveChatView: View {
     public let escalation: Escalation
     @StateObject private var viewModel: LiveChatViewModel
     @State private var showConnectionBanner = false
+    @State private var showResolveDialog = false
+    @State private var showEndChatDialog = false
+    @State private var showReopenDialog = false
+    @State private var resolutionNotes = ""
+    @State private var endChatReason = ""
+    @Environment(\.dismiss) private var dismiss
     
     private let sdk: NeuralNodesInbox
     
@@ -15,8 +21,12 @@ public struct LiveChatView: View {
     
     // Check if chat is closed or resolved
     private var isChatClosed: Bool {
-        let status = escalation.status.lowercased()
+        let status = viewModel.currentStatus.lowercased()
         return status == "closed" || status == "resolved"
+    }
+    
+    private var currentStatus: String {
+        viewModel.currentStatus.lowercased()
     }
     
     public var body: some View {
@@ -131,12 +141,51 @@ public struct LiveChatView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
-                    // Only show End Chat if not already closed
-                    if !isChatClosed {
-                        Button(action: { viewModel.endChat() }) {
+                    // Status-based menu options
+                    if currentStatus == "pending" {
+                        Button(action: { 
+                            Task {
+                                await viewModel.acceptChat()
+                                if viewModel.currentStatus.lowercased() == "active" {
+                                    // Successfully accepted
+                                }
+                            }
+                        }) {
+                            Label("Accept Chat", systemImage: "checkmark.circle")
+                        }
+                    }
+                    
+                    if currentStatus == "active" {
+                        Button(action: { 
+                            showResolveDialog = true
+                        }) {
+                            Label("Resolve", systemImage: "checkmark.circle.fill")
+                        }
+                        
+                        Button(action: { 
+                            showEndChatDialog = true
+                        }) {
                             Label("End Chat", systemImage: "xmark.circle")
                         }
                     }
+                    
+                    if currentStatus == "resolved" {
+                        Button(action: { 
+                            Task {
+                                await viewModel.closeChat()
+                            }
+                        }) {
+                            Label("Close", systemImage: "xmark.circle.fill")
+                        }
+                        
+                        Button(action: { 
+                            showReopenDialog = true
+                        }) {
+                            Label("Reopen", systemImage: "arrow.counterclockwise")
+                        }
+                    }
+                    
+                    Divider()
                     
                     Button(action: { viewModel.transferChat() }) {
                         Label("Transfer Chat", systemImage: "arrow.right.circle")
@@ -145,6 +194,55 @@ public struct LiveChatView: View {
                     Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .alert("Resolve Chat", isPresented: $showResolveDialog) {
+            TextField("Resolution notes (optional)", text: $resolutionNotes, axis: .vertical)
+                .lineLimit(3...6)
+            
+            Button("Cancel", role: .cancel) {
+                resolutionNotes = ""
+            }
+            
+            Button("Resolve") {
+                Task {
+                    await viewModel.resolveChat(notes: resolutionNotes.isEmpty ? nil : resolutionNotes)
+                    resolutionNotes = ""
+                    // Dismiss after successful resolve
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("Add optional notes about how this issue was resolved.")
+        }
+        .alert("End Chat", isPresented: $showEndChatDialog) {
+            TextField("Reason for ending (optional)", text: $endChatReason, axis: .vertical)
+                .lineLimit(3...6)
+            
+            Button("Cancel", role: .cancel) {
+                endChatReason = ""
+            }
+            
+            Button("End Chat", role: .destructive) {
+                Task {
+                    await viewModel.endChat(reason: endChatReason.isEmpty ? "Chat ended by agent" : endChatReason)
+                    endChatReason = ""
+                    // Dismiss after successful end chat
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("This will close the chat. You can optionally provide a reason.")
+        }
+        .alert("Reopen Chat", isPresented: $showReopenDialog) {
+            Button("Cancel", role: .cancel) {}
+            
+            Button("Reopen") {
+                Task {
+                    await viewModel.reopenChat()
+                }
+            }
+        } message: {
+            Text("This will reopen the chat and set it back to active status.")
         }
         .task {
             await viewModel.connect()

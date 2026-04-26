@@ -89,12 +89,12 @@ public class LiveChatClient {
         )
     }
     
-    public func resolveEscalation(escalationId: String) async throws {
-        try await updateEscalationStatus(escalationId: escalationId, status: "resolved")
+    public func resolveEscalation(escalationId: String, notes: String? = nil) async throws {
+        try await updateEscalationStatus(escalationId: escalationId, status: "resolved", resolutionNotes: notes)
     }
     
-    public func endEscalation(escalationId: String) async throws {
-        try await updateEscalationStatus(escalationId: escalationId, status: "closed", resolutionNotes: "Chat ended by agent")
+    public func endEscalation(escalationId: String, reason: String? = nil) async throws {
+        try await updateEscalationStatus(escalationId: escalationId, status: "closed", resolutionNotes: reason ?? "Chat ended by agent")
     }
     
     public func transferEscalation(escalationId: String, toAgentId: String) async throws {

@@ -12,6 +12,7 @@ public struct SDKConfig: Codable {
     public let limits: Limits
     
     public struct Features: Codable {
+        public let darkMode: Bool
         public let pushNotifications: Bool
         public let fileUpload: Bool
         public let voiceMessages: Bool
@@ -21,6 +22,7 @@ public struct SDKConfig: Codable {
         public let conversationSearch: Bool
         
         enum CodingKeys: String, CodingKey {
+            case darkMode = "dark_mode"
             case pushNotifications = "push_notifications"
             case fileUpload = "file_upload"
             case voiceMessages = "voice_messages"

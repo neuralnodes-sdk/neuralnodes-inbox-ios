@@ -13,6 +13,10 @@ public struct InboxView: View {
     
     private let sdk: NeuralNodesInbox
     
+    private var isSearchEnabled: Bool {
+        sdk.getConfig()?.features.conversationSearch ?? false
+    }
+    
     public init(sdk: NeuralNodesInbox) {
         self.sdk = sdk
         _viewModel = StateObject(wrappedValue: InboxViewModel(sdk: sdk))
@@ -21,20 +25,22 @@ public struct InboxView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Search Bar
-            SearchBar(
-                searchText: $searchViewModel.searchText,
-                isSearching: $searchViewModel.isSearching,
-                placeholder: "Search conversations",
-                suggestions: searchViewModel.suggestions,
-                onSuggestionTap: { suggestion in
-                    searchViewModel.selectSuggestion(suggestion)
-                },
-                onSearch: { _ in }
-            )
+            // Search Bar - only show if conversation search is enabled
+            if isSearchEnabled {
+                SearchBar(
+                    searchText: $searchViewModel.searchText,
+                    isSearching: $searchViewModel.isSearching,
+                    placeholder: "Search conversations",
+                    suggestions: searchViewModel.suggestions,
+                    onSuggestionTap: { suggestion in
+                        searchViewModel.selectSuggestion(suggestion)
+                    },
+                    onSearch: { _ in }
+                )
+            }
             
             // Show search results or normal inbox
-            if searchViewModel.isSearching && !searchViewModel.searchText.isEmpty {
+            if isSearchEnabled && searchViewModel.isSearching && !searchViewModel.searchText.isEmpty {
                 SearchResultsView(
                     results: searchViewModel.searchResults,
                     isLoading: searchViewModel.isLoading,
@@ -79,11 +85,14 @@ public struct InboxView: View {
                                         .padding(.horizontal, 16)
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                .simultaneousGesture(TapGesture().onEnded {
+                                    // Pause real-time updates when navigating to conversation
+                                    viewModel.pauseRealtimeUpdates()
+                                })
                                 
-                                if conversation.id != viewModel.conversations.last?.id {
-                                    Divider()
-                                        .padding(.leading, 82)
-                                }
+                                // Bottom border for each conversation card
+                                Divider()
+                                    .padding(.leading, 82)
                             }
                         }
                         .padding(.vertical, 8)
@@ -128,13 +137,27 @@ public struct InboxView: View {
             )
         }
         .onAppear {
+            // Only resume if we're not already subscribed
+            if !viewModel.isSubscribed {
+                print("👁️ [INBOX VIEW] onAppear - resuming real-time updates")
+                viewModel.resumeRealtimeUpdates()
+                
+                Task {
+                    await viewModel.loadConversations()
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshInboxAndDismiss"))) { _ in
+            print("📢 [INBOX VIEW] Received RefreshInboxAndDismiss notification")
             Task {
                 await viewModel.loadConversations()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshInboxAndDismiss"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshInboxList"))) { _ in
+            print("📢 [INBOX VIEW] Received RefreshInboxList notification")
+            // Use debounced version to prevent infinite loops
             Task {
-                await viewModel.loadConversations()
+                await viewModel.loadConversationsWithDebounce()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToConversationWithSearch"))) { notification in

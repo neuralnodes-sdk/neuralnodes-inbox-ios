@@ -265,7 +265,6 @@ public class InboxViewController: UIViewController {
     private func subscribeToUpdates() {
         // Get clientId from API client
         guard let clientId = apiClient.getClientId() else {
-            print("⚠️ Cannot subscribe to inbox updates - clientId not available")
             return
         }
         

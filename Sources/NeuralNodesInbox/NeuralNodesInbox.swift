@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 import Ably
 
 public class NeuralNodesInbox {
@@ -48,7 +49,7 @@ public class NeuralNodesInbox {
                     realtimeClient.connect(with: ablyKey)
                 }
                 if let pusherKey = config.pusherKey, let pusherCluster = config.pusherCluster {
-                    pusherClient.connect(key: pusherKey, cluster: pusherCluster)
+                    pusherClient.connect(key: pusherKey, cluster: pusherCluster, apiKey: apiKey)
                 }
                 
                 await MainActor.run {
@@ -114,6 +115,26 @@ public class NeuralNodesInbox {
     
     public func getConfig() -> SDKConfig? {
         return config
+    }
+    
+    /// Returns the appropriate color scheme based on dark mode setting
+    /// - Returns: nil if dark mode is enabled (respects system), .light if disabled
+    public func getColorScheme() -> ColorScheme? {
+        guard let config = config else { return nil }
+        
+        // Check if dark mode feature is enabled
+        guard config.features.darkMode else {
+            return .light 
+        }
+        
+        // Check user preference from AppStorage
+        let forceDarkMode = UserDefaults.standard.bool(forKey: "forceDarkMode")
+        if forceDarkMode {
+            return .dark // Force dark mode if user enabled it
+        }
+        
+        // Otherwise respect system setting
+        return nil
     }
     
     public var isInitialized: Bool {

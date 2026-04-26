@@ -1,18 +1,51 @@
 import Foundation
 import PusherSwift
 
+/// Auth request builder for Pusher private channels
+class PusherAuthRequestBuilder: AuthRequestBuilderProtocol {
+    private let apiKey: String
+    
+    init(apiKey: String) {
+        self.apiKey = apiKey
+    }
+    
+    func requestFor(socketID: String, channelName: String) -> URLRequest? {
+        guard let url = URL(string: "https://api.neuralnodes.space/pusher/auth") else {
+            print("❌ [PUSHER AUTH] Invalid auth URL")
+            return nil
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        
+        let bodyString = "socket_id=\(socketID)&channel_name=\(channelName)"
+        request.httpBody = bodyString.data(using: .utf8)
+        
+        print("📡 [PUSHER AUTH] Requesting auth for channel: \(channelName)")
+        print("   Socket ID: \(socketID)")
+        
+        return request
+    }
+}
+
 /// Real-time client using Pusher for live chat escalations
 public class PusherClient {
     
     private var pusher: Pusher?
     private var subscribedChannels: [String: PusherChannel] = [:]
+    private var apiKey: String?
     
     public init() {}
     
     // MARK: - Connection
     
-    public func connect(key: String, cluster: String) {
+    public func connect(key: String, cluster: String, apiKey: String) {
+        self.apiKey = apiKey
+        
         let options = PusherClientOptions(
+            authMethod: .authRequestBuilder(authRequestBuilder: PusherAuthRequestBuilder(apiKey: apiKey)),
             host: .cluster(cluster)
         )
         
@@ -26,8 +59,8 @@ public class PusherClient {
     }
     
     public func disconnect() {
-        subscribedChannels.keys.forEach { channelName in
-            pusher?.unsubscribe("escalation-\(channelName)")
+        subscribedChannels.keys.forEach { escalationId in
+            pusher?.unsubscribe("private-escalation-\(escalationId)")
         }
         subscribedChannels.removeAll()
         pusher?.disconnect()
@@ -48,20 +81,26 @@ public class PusherClient {
         onTyping: @escaping (Bool) -> Void
     ) {
         guard pusher != nil else {
-            print("⚠️ Pusher not initialized")
             return
         }
         
-        let channelName = "escalation-\(escalationId)"
+        // Backend sends to "private-escalation-{id}" channel
+        let channelName = "private-escalation-\(escalationId)"
+        print("📡 [PUSHER] Subscribing to channel: \(channelName)")
         let channel = pusher!.subscribe(channelName)
         
         // Subscribe to new messages
         let _ = channel.bind(eventName: "new-message") { (event: PusherEvent) in
+            print("📨 [PUSHER] Received new-message event on \(channelName)")
+            print("   Event data: \(event.data ?? "nil")")
+            
             guard let data = event.data,
                   let jsonData = data.data(using: .utf8) else {
-                print("⚠️ Failed to get message data")
+                print("⚠️ [PUSHER] Failed to get message data")
                 return
             }
+            
+            print("📦 [PUSHER] Parsing message JSON...")
             
             // Use custom decoder with date handling
             let decoder = JSONDecoder()
@@ -99,10 +138,12 @@ public class PusherClient {
             }
             
             guard let message = try? decoder.decode(ChatMessage.self, from: jsonData) else {
-                print("⚠️ Failed to decode chat message")
+                print("❌ [PUSHER] Failed to decode message")
                 return
             }
             
+            print("✅ [PUSHER] Message decoded successfully: \(message.messageText)")
+            print("🔔 [PUSHER] Calling onMessage callback...")
             onMessage(message)
         }
         
@@ -119,29 +160,44 @@ public class PusherClient {
         }
         
         subscribedChannels[escalationId] = channel
-        print("✅ Subscribed to escalation: \(escalationId)")
     }
     
     public func unsubscribe(from escalationId: String) {
         guard subscribedChannels[escalationId] != nil else { return }
-        let channelName = "escalation-\(escalationId)"
+        let channelName = "private-escalation-\(escalationId)"
+        print("🔕 [PUSHER] Unsubscribing from channel: \(channelName)")
         pusher?.unsubscribe(channelName)
         subscribedChannels.removeValue(forKey: escalationId)
-        print("✅ Unsubscribed from escalation: \(escalationId)")
     }
     
-    public func subscribeToEscalationList(onUpdate: @escaping () -> Void) {
+    public func subscribeToEscalationList(clientId: String, onUpdate: @escaping () -> Void) {
         guard pusher != nil else {
-            print("⚠️ Pusher not initialized")
             return
         }
         
-        let channel = pusher?.subscribe("escalations")
-        let _ = channel?.bind(eventName: "update") { _ in
+        // Check if already subscribed
+        if subscribedChannels["escalation-list"] != nil {
+            print("ℹ️ [PUSHER] Already subscribed to escalation list, skipping")
+            return
+        }
+        
+        // Subscribe to client-specific escalation updates channel
+        let channelName = "private-client-\(clientId)"
+        print("📡 [PUSHER] Subscribing to escalation list channel: \(channelName)")
+        let channel = pusher?.subscribe(channelName)
+        
+        let _ = channel?.bind(eventName: "new-escalation") { _ in
+            print("🔔 [PUSHER] Received new-escalation event")
             onUpdate()
         }
         
-        print("✅ Subscribed to escalation list updates")
+        let _ = channel?.bind(eventName: "escalation-update") { _ in
+            print("🔔 [PUSHER] Received escalation-update event")
+            onUpdate()
+        }
+        
+        subscribedChannels["escalation-list"] = channel
+        print("✅ [PUSHER] Subscribed to escalation list updates: \(channelName)")
     }
     
     // MARK: - Trigger Events

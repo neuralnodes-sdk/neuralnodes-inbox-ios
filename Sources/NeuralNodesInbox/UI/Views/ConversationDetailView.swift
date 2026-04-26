@@ -197,6 +197,9 @@ public struct ConversationDetailView: View {
         .onDisappear {
             viewModel.stopListening()
             searchDebounceTimer?.invalidate()
+            
+            // Invalidate cache and trigger refresh when leaving conversation
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshInboxList"), object: nil)
         }
         .sheet(isPresented: $showGlobalSearchResults) {
             NavigationStack {
@@ -493,7 +496,6 @@ public struct ConversationDetailView: View {
             } catch {
                 await MainActor.run {
                     self.isLoadingGlobalSearch = false
-                    print("❌ Global search error: \(error.localizedDescription)")
                 }
             }
         }

@@ -14,6 +14,7 @@ public class RealtimeClient {
     public func connect(with key: String) {
         let options = ARTClientOptions(key: key)
         options.autoConnect = true
+        options.logLevel = .none // Disable Ably internal logs
         ably = ARTRealtime(options: options)
         
         ably?.connection.on { stateChange in
@@ -42,7 +43,6 @@ public class RealtimeClient {
     
     public func subscribeToConversation(_ conversationId: String, onMessage: @escaping (Message) -> Void) {
         guard let ably = ably else {
-            print("⚠️ Ably not connected")
             return
         }
         
@@ -131,6 +131,7 @@ public class RealtimeClient {
     
     public func subscribeToInbox(clientId: String, onUpdate: @escaping () -> Void) {
         guard let ably = ably else {
+            print("⚠️ Ably not connected for inbox subscription")
             return
         }
         
@@ -138,12 +139,33 @@ public class RealtimeClient {
         let channelName = "inbox-updates-\(clientId)"
         let channel = ably.channels.get(channelName)
         
-        // Subscribe to new-message events
-        channel.subscribe("new-message") { message in
-            onUpdate()
+        print("📡 Subscribing to Ably inbox channel: \(channelName)")
+        
+        // Subscribe to all events on this channel
+        channel.subscribe { message in
+            print("📨 [INBOX UPDATE] Received Ably message on \(channelName)")
+            print("   Event name: \(message.name ?? "nil")")
+            print("   Timestamp: \(Date())")
+            if let data = message.data {
+                print("   Data: \(data)")
+            }
+            
+            // Ensure callback runs on main thread
+            DispatchQueue.main.async {
+                print("🔄 [INBOX UPDATE] Triggering onUpdate callback on main thread")
+                onUpdate()
+            }
         }
         
         subscribedChannels["inbox-updates"] = channel
+        print("✅ Subscribed to inbox updates: \(channelName)")
+    }
+    
+    public func unsubscribeFromInbox() {
+        guard let channel = subscribedChannels["inbox-updates"] else { return }
+        print("🔕 Unsubscribing from inbox updates")
+        channel.unsubscribe()
+        subscribedChannels.removeValue(forKey: "inbox-updates")
     }
     
     public func subscribeToLiveChat(clientId: String, onUpdate: @escaping () -> Void) {

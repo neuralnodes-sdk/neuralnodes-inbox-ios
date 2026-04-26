@@ -40,5 +40,6 @@ public struct InboxTabView: View {
             .tag(2)
         }
         .accentColor(.primaryPurple)
+        .preferredColorScheme(sdk.getColorScheme())
     }
 }

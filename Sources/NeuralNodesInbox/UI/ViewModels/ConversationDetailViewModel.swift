@@ -168,6 +168,11 @@ public class ConversationDetailViewModel: ObservableObject {
             do {
                 let apiClient = sdk.getAPIClient()
                 try await apiClient.markAsRead(conversationId: conversationId)
+                
+                // Trigger inbox refresh after marking as read
+                await MainActor.run {
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshInboxList"), object: nil)
+                }
             } catch {
                 // Silently fail
             }

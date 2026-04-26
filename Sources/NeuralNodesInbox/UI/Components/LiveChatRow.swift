@@ -60,8 +60,8 @@ public struct LiveChatRow: View {
                     .cornerRadius(6)
                     
                     // Unread Badge
-                    if escalation.unreadCount > 0 {
-                        Text("\(escalation.unreadCount)")
+                    if let unreadCount = escalation.unreadCount, unreadCount > 0 {
+                        Text("\(unreadCount)")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 6)
