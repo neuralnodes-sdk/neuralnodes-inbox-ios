@@ -1,58 +1,17 @@
 name: Validate Build
 
+# This workflow is disabled - validation is now part of release.yml
+# Keeping this file for reference only
+
 on:
-  pull_request:
-    branches:
-      - main
-      - master
-  push:
-    branches:
-      - main
-      - master
+  workflow_dispatch:  # Manual trigger only
 
 jobs:
   validate:
     runs-on: macos-latest
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
-      
-      - name: Cache Swift packages
-        uses: actions/cache@v3
-        with:
-          path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
-      
-      - name: Build package
+      - name: Disabled
         run: |
-          # Validate the Swift Package
-          swift package resolve
-          
-          # Validate Package.swift structure
-          swift package dump-package > /dev/null
-          
-          echo "✅ Package validation completed"
-      
-      - name: Run tests
-        run: |
-          echo "⚠️ No tests configured"
-      
-      - name: Validate Package.swift
-        run: |
-          swift package dump-package > /dev/null
-          echo "✅ Package.swift is valid"
-      
-      - name: Build summary
-        run: |
-          echo "✅ Package validation passed!"
-          echo "📦 Swift Package is ready for distribution"
-          echo ""
-          echo "The package will be validated by Xcode when users add it to their projects."
+          echo "This workflow is disabled. Validation is now part of release.yml"
+          echo "To validate manually, trigger this workflow from the Actions tab"

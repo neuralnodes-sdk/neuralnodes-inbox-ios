@@ -2,7 +2,7 @@ import Foundation
 
 /// SDK Version Information
 public struct SDKVersion {
-    public static let version = "2.1.1"
+    public static let version = "2.1.2"
     
     public static let name = "NeuralNodesInbox-iOS"
     
