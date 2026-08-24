@@ -21,6 +21,9 @@ let package = Package(
             dependencies: [
                 .product(name: "Ably", package: "ably-cocoa"),
                 .product(name: "PusherSwift", package: "pusher-websocket-swift")
-            ])
+            ]),
+        .testTarget(
+            name: "NeuralNodesInboxTests",
+            dependencies: ["NeuralNodesInbox"])
     ]
 )
