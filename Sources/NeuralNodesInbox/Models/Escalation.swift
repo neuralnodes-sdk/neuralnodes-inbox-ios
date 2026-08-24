@@ -16,7 +16,23 @@ public struct Escalation: Codable, Identifiable {
     public let updatedAt: Date
     public let resolvedAt: Date?
     public let resolutionNotes: String?
-    
+    // Everything below was missing from this model entirely - the JSON
+    // response always included them (escalated_sessions.*, see
+    // services/live_chat_service.py get_escalation/get_escalations), the
+    // decoder just had nowhere to put them. assignedTo/assignedToName in
+    // particular is ownership - the backend enforces "only the assigned
+    // agent may send" (routes/live_chat_routes.py send_agent_message), so
+    // without this the UI had no way to show who owns a chat or gate
+    // claim-required actions.
+    public let clientId: String?
+    public let sessionId: String?
+    public let assignedTo: String?
+    public let assignedToName: String?
+    public let escalationType: String?
+    public let escalatedAt: Date?
+    public let claimedAt: Date?
+    public let lockExpiresAt: Date?
+
     enum CodingKeys: String, CodingKey {
         case id
         case leadId = "lead_id"
@@ -32,12 +48,23 @@ public struct Escalation: Codable, Identifiable {
         case updatedAt = "updated_at"
         case resolvedAt = "resolved_at"
         case resolutionNotes = "resolution_notes"
+        case clientId = "client_id"
+        case sessionId = "session_id"
+        case assignedTo = "assigned_to"
+        case assignedToName = "assigned_to_name"
+        case escalationType = "escalation_type"
+        case escalatedAt = "escalated_at"
+        case claimedAt = "claimed_at"
+        case lockExpiresAt = "lock_expires_at"
     }
-    
+
     /// Display name for the escalation
     public var displayName: String {
         return leadName ?? leadEmail ?? "Anonymous Visitor"
     }
+
+    /// Whether this escalation is currently assigned to an agent.
+    public var isOwned: Bool { assignedTo != nil }
     
     /// Whether the escalation is active
     public var isActive: Bool {
@@ -159,10 +186,24 @@ struct ChatMessagesResponse: Codable {
 struct SendChatMessageRequest: Codable {
     let messageText: String
     let messageType: String
-    
+    let attachmentUrl: String?
+    let attachmentType: String?
+    let attachmentName: String?
+
+    init(messageText: String, messageType: String = "text", attachmentUrl: String? = nil, attachmentType: String? = nil, attachmentName: String? = nil) {
+        self.messageText = messageText
+        self.messageType = messageType
+        self.attachmentUrl = attachmentUrl
+        self.attachmentType = attachmentType
+        self.attachmentName = attachmentName
+    }
+
     enum CodingKeys: String, CodingKey {
         case messageText = "message_text"
         case messageType = "message_type"
+        case attachmentUrl = "attachment_url"
+        case attachmentType = "attachment_type"
+        case attachmentName = "attachment_name"
     }
 }
 
@@ -176,9 +217,91 @@ struct SendChatMessageResponse: Codable {
 struct UpdateEscalationStatusRequest: Codable {
     let status: String
     let resolutionNotes: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case status
         case resolutionNotes = "resolution_notes"
+    }
+}
+
+/// PusherService.send_escalation_status_change's "status-changed" payload.
+public struct EscalationStatusChange: Codable {
+    public let status: String
+    public let assignedTo: String?
+    public let assignedToName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case assignedTo = "assigned_to"
+        case assignedToName = "assigned_to_name"
+    }
+}
+
+/// PusherService.send_agent_joined's "agent-joined" payload.
+public struct AgentJoinedEvent: Codable {
+    public let agentName: String
+    public let agentId: String
+
+    enum CodingKeys: String, CodingKey {
+        case agentName = "agent_name"
+        case agentId = "agent_id"
+    }
+}
+
+/// PusherService.send_ownership_event's "ownership-changed" payload.
+/// event is one of claimed/released/transferred/taken_over/reclaimed_stale.
+public struct OwnershipChangedEvent: Codable {
+    public let event: String
+    public let newOwner: String?
+    public let newOwnerName: String?
+    public let previousOwner: String?
+
+    enum CodingKeys: String, CodingKey {
+        case event
+        case newOwner = "new_owner"
+        case newOwnerName = "new_owner_name"
+        case previousOwner = "previous_owner"
+    }
+}
+
+/// Body for POST /pusher/typing (routes/pusher_routes.py
+/// send_typing_indicator) - unlike every other live-chat call,
+/// escalation_id travels in the body here, not the URL path.
+struct TypingIndicatorRequest: Codable {
+    let escalationId: String
+    let senderName: String
+    let senderType: String
+    let isTyping: Bool
+
+    init(escalationId: String, senderName: String, senderType: String = "agent", isTyping: Bool) {
+        self.escalationId = escalationId
+        self.senderName = senderName
+        self.senderType = senderType
+        self.isTyping = isTyping
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case escalationId = "escalation_id"
+        case senderName = "sender_name"
+        case senderType = "sender_type"
+        case isTyping = "is_typing"
+    }
+}
+
+struct TakeoverRequest: Codable {
+    let reason: String?
+}
+
+struct UploadAttachmentResponse: Codable {
+    let success: Bool
+    let attachmentUrl: String
+    let attachmentType: String
+    let attachmentName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case attachmentUrl = "attachment_url"
+        case attachmentType = "attachment_type"
+        case attachmentName = "attachment_name"
     }
 }

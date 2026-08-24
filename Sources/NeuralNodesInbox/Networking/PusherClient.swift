@@ -78,7 +78,10 @@ public class PusherClient {
     public func subscribeToEscalation(
         _ escalationId: String,
         onMessage: @escaping (ChatMessage) -> Void,
-        onTyping: @escaping (Bool) -> Void
+        onTyping: @escaping (Bool) -> Void,
+        onStatusChanged: @escaping (EscalationStatusChange) -> Void = { _ in },
+        onAgentJoined: @escaping (AgentJoinedEvent) -> Void = { _ in },
+        onOwnershipChanged: @escaping (OwnershipChangedEvent) -> Void = { _ in }
     ) {
         guard pusher != nil else {
             return
@@ -147,18 +150,43 @@ public class PusherClient {
             onMessage(message)
         }
         
-        // Subscribe to typing indicators
-        let _ = channel.bind(eventName: "typing") { (event: PusherEvent) in
+        // Subscribe to typing indicators. Event name must be
+        // "typing-indicator" - the backend (services/pusher_service.py
+        // send_typing_indicator) has never triggered a plain "typing"
+        // event, so this listener was dead code until now.
+        let _ = channel.bind(eventName: "typing-indicator") { (event: PusherEvent) in
             guard let data = event.data,
                   let jsonData = data.data(using: .utf8),
                   let typingData = try? JSONDecoder().decode([String: Bool].self, from: jsonData),
                   let isTyping = typingData["is_typing"] else {
                 return
             }
-            
+
             onTyping(isTyping)
         }
-        
+
+        // status-changed/agent-joined/ownership-changed are all real
+        // events the backend already triggers on this same channel (see
+        // PusherService.send_escalation_status_change / send_agent_joined
+        // / send_ownership_event) - unbound here until now.
+        let _ = channel.bind(eventName: "status-changed") { (event: PusherEvent) in
+            guard let data = event.data, let jsonData = data.data(using: .utf8),
+                  let change = try? JSONDecoder().decode(EscalationStatusChange.self, from: jsonData) else { return }
+            onStatusChanged(change)
+        }
+
+        let _ = channel.bind(eventName: "agent-joined") { (event: PusherEvent) in
+            guard let data = event.data, let jsonData = data.data(using: .utf8),
+                  let joined = try? JSONDecoder().decode(AgentJoinedEvent.self, from: jsonData) else { return }
+            onAgentJoined(joined)
+        }
+
+        let _ = channel.bind(eventName: "ownership-changed") { (event: PusherEvent) in
+            guard let data = event.data, let jsonData = data.data(using: .utf8),
+                  let changed = try? JSONDecoder().decode(OwnershipChangedEvent.self, from: jsonData) else { return }
+            onOwnershipChanged(changed)
+        }
+
         subscribedChannels[escalationId] = channel
     }
     

@@ -12,39 +12,54 @@ public class LiveChatViewModel: ObservableObject {
     @Published public var hasMoreMessages = true
     @Published public var scrollToMessageId: String?
     @Published public var currentStatus: String
-    
+    // One-shot realtime notices for the UI to surface (toast/banner) and
+    // clear - nil means "nothing pending". Neither event was reachable
+    // before: the backend has always sent them, but nothing subscribed.
+    @Published public var agentJoinedEvent: AgentJoinedEvent?
+    @Published public var ownershipEvent: OwnershipChangedEvent?
+
     public let escalationId: String
     private let sdk: NeuralNodesInbox
     private let pageSize = 15
     private var currentOffset = 0
     private var isInitialLoad = true
-    
+    private var heartbeatTask: Task<Void, Never>?
+
     public init(escalationId: String, sdk: NeuralNodesInbox) {
         self.escalationId = escalationId
         self.sdk = sdk
         self.currentStatus = "active" // Default, will be updated when loading
     }
-    
+
+    /// True once ownershipEvent has told us someone else now owns the
+    /// chat (taken over, or claimed by another agent) - the composer
+    /// should disable and the caller should stop sending.
+    public var ownershipLost: Bool {
+        guard let event = ownershipEvent,
+              ["taken_over", "claimed", "transferred"].contains(event.event) else { return false }
+        return event.newOwner != sdk.currentAgent?.id
+    }
+
     public func connect() async {
         do {
             try await Task.sleep(nanoseconds: 500_000_000)
             isConnected = true
-            
+
             // Subscribe to Pusher channel
             let pusherClient = sdk.getPusherClient()
             pusherClient.subscribeToEscalation(escalationId, onMessage: { [weak self] message in
                 print("📬 [LIVE CHAT VM] Received message from Pusher: \(message.messageText)")
                 Task { @MainActor in
                     guard let self = self else { return }
-                    
+
                     print("🔍 [LIVE CHAT VM] Checking for duplicates...")
-                    
+
                     // Check if message already exists by ID
                     if self.messages.contains(where: { $0.id == message.id }) {
                         print("⚠️ [LIVE CHAT VM] Message with ID \(message.id) already exists, skipping")
                         return
                     }
-                    
+
                     // Also check for duplicates by content and timestamp (within 2 seconds)
                     // This handles the case where we sent the message and it comes back via Pusher
                     let isDuplicate = self.messages.contains { existingMsg in
@@ -52,12 +67,12 @@ public class LiveChatViewModel: ObservableObject {
                         existingMsg.senderType == message.senderType &&
                         abs(existingMsg.createdAt.timeIntervalSince(message.createdAt)) < 2.0
                     }
-                    
+
                     if isDuplicate {
                         print("⚠️ [LIVE CHAT VM] Duplicate message detected by content/timestamp, skipping")
                         return
                     }
-                    
+
                     print("➕ [LIVE CHAT VM] Adding message to list")
                     self.messages.append(message)
                     self.scrollToMessageId = message.id
@@ -67,13 +82,67 @@ public class LiveChatViewModel: ObservableObject {
                 Task { @MainActor in
                     self?.isTyping = isTyping
                 }
+            }, onStatusChanged: { [weak self] change in
+                Task { @MainActor in
+                    self?.currentStatus = change.status
+                }
+            }, onAgentJoined: { [weak self] event in
+                Task { @MainActor in
+                    self?.agentJoinedEvent = event
+                }
+            }, onOwnershipChanged: { [weak self] event in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.ownershipEvent = event
+                    if self.ownershipLost { self.stopHeartbeat() }
+                }
             })
+
+            startHeartbeat()
         } catch {
             isConnected = false
         }
     }
-    
+
+    /// Claims this escalation for the current agent. Call before
+    /// sendMessage() on an unowned chat - the backend rejects a send from
+    /// anyone but the assigned owner.
+    public func claim() async {
+        do {
+            _ = try await sdk.getLiveChatClient().claimEscalation(escalationId: escalationId)
+            currentStatus = "active"
+        } catch {
+            print("❌ [LIVE CHAT VM] Failed to claim escalation: \(error)")
+        }
+    }
+
+    /// Extends the ownership lease every 30s while this chat is open -
+    /// required for the owner to stay the owner (see
+    /// routes/live_chat_routes.py heartbeat_escalation_route: the lease
+    /// expires after 5 minutes idle). Never called anywhere in this SDK
+    /// before this.
+    private func startHeartbeat() {
+        heartbeatTask?.cancel()
+        heartbeatTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                guard let self, !Task.isCancelled else { return }
+                do {
+                    try await self.sdk.getLiveChatClient().sendHeartbeat(escalationId: self.escalationId)
+                } catch {
+                    print("⚠️ [LIVE CHAT VM] Heartbeat failed (ownership likely lost): \(error)")
+                }
+            }
+        }
+    }
+
+    private func stopHeartbeat() {
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+    }
+
     public func disconnect() {
+        stopHeartbeat()
         let pusherClient = sdk.getPusherClient()
         pusherClient.unsubscribe(from: escalationId)
         isConnected = false

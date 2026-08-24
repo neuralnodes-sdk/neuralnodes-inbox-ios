@@ -93,6 +93,25 @@ public class NeuralNodesInbox {
         return pushService.handleNotification(userInfo)
     }
     
+    /// Logs in as a specific agent instead of every escalation action
+    /// being attributed to this client's shared API key. Purely additive
+    /// - skip this and Live Chat keeps working exactly as before.
+    @discardableResult
+    public func login(email: String, password: String) async throws -> AgentUser {
+        return try await apiClient.login(email: email, password: password)
+    }
+
+    public func logoutAgent() async {
+        await apiClient.logout()
+    }
+
+    /// The currently logged-in agent, or nil if login() was never called
+    /// (the default - every action then runs as the shared client API
+    /// key).
+    public var currentAgent: AgentUser? {
+        return apiClient.currentAgent
+    }
+
     public func getAPIClient() -> APIClient {
         return apiClient
     }

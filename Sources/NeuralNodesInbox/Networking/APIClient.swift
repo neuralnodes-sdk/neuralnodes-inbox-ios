@@ -7,6 +7,21 @@ public class APIClient {
     private let baseURL: String
     private let session: URLSession
     private var clientId: String?
+
+    // Per-agent identity, opt-in via login() below. Unset, every request
+    // authenticates as the shared client X-API-Key alone (unchanged
+    // default behavior) - the backend's own ownership gate on sending a
+    // message (routes/live_chat_routes.py send_agent_message) exempts
+    // that shared-key identity specifically, which is why nothing broke
+    // before this existed. Once logged in, every escalation-management
+    // call (send/claim/release/heartbeat/takeover) is attributed to this
+    // real agent instead, and the ownership gate actually applies - claim
+    // the chat before sending, and heartbeat while it's open (see
+    // LiveChatViewModel). In-memory only: lost on process death, by
+    // design, to avoid a breaking initializer change (this class takes
+    // no persistence mechanism to store a token securely without one).
+    private var authToken: String?
+    public private(set) var currentAgent: AgentUser?
     
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
@@ -91,6 +106,83 @@ public class APIClient {
     
     public func getClientId() -> String? {
         return clientId
+    }
+
+    // MARK: - Agent Login
+
+    /// Logs in as a specific agent (POST /client-portal/user-auth/login),
+    /// instead of every escalation action being attributed to this
+    /// client's shared API key. Purely additive - skip this and Live Chat
+    /// keeps working exactly as before. Throws APIError.httpError(401, _)
+    /// on bad credentials, or 403 if sdk_login_enabled is off for this
+    /// account (routes/client_user_auth_routes.py login). Once logged in,
+    /// sending a message requires owning the escalation first (see
+    /// LiveChatViewModel.claim() and the heartbeat it starts
+    /// automatically).
+    @discardableResult
+    public func login(email: String, password: String) async throws -> AgentUser {
+        let response: LoginResponse = try await request(
+            path: "/client-portal/user-auth/login",
+            method: "POST",
+            body: LoginRequest(email: email, password: password)
+        )
+        authToken = response.token
+        currentAgent = response.user
+        return response.user
+    }
+
+    public func logout() async {
+        if authToken != nil {
+            struct EmptyResponse: Codable {}
+            let _: EmptyResponse? = try? await request(path: "/client-portal/user-auth/logout", method: "POST")
+        }
+        authToken = nil
+        currentAgent = nil
+    }
+
+    // MARK: - Live Chat Attachments
+
+    /// Mirrors POST /live-chat/upload's contract for the agent side.
+    /// Nothing in this SDK could attach a file to an outgoing message
+    /// before this - sendEscalationMessage only ever carried text.
+    public func uploadAgentAttachment(escalationId: String, filename: String, mimeType: String, data: Data) async throws -> UploadAttachmentResponse {
+        guard let url = URL(string: baseURL + "/client-portal/live-chat/escalations/\(escalationId)/agent-upload") else {
+            throw APIError.invalidURL
+        }
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue(SDKVersion.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("IOS", forHTTPHeaderField: "X-Client-Type")
+        if let authToken {
+            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(data)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (responseData, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            var errorMessage: String?
+            if let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] {
+                errorMessage = json["detail"] as? String
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: errorMessage)
+        }
+        do {
+            return try decoder.decode(UploadAttachmentResponse.self, from: responseData)
+        } catch {
+            throw APIError.decodingError(error)
+        }
     }
     
     // MARK: - Conversations
@@ -307,7 +399,10 @@ public class APIClient {
         request.setValue(SDKVersion.version, forHTTPHeaderField: "X-SDK-Version")
         request.setValue("iOS", forHTTPHeaderField: "X-SDK-Platform")
         request.setValue("IOS", forHTTPHeaderField: "X-Client-Type")
-        
+        if let authToken {
+            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        }
+
         // Add cache-busting headers for GET requests to prevent Cloudflare caching
         if method == "GET" {
             request.setValue("no-cache, no-store, must-revalidate", forHTTPHeaderField: "Cache-Control")
@@ -345,6 +440,38 @@ public class APIClient {
         } catch {
             throw APIError.decodingError(error)
         }
+    }
+}
+
+// MARK: - Agent Login
+
+struct LoginRequest: Codable {
+    let email: String
+    let password: String
+}
+
+public struct AgentUser: Codable {
+    public let id: String
+    public let email: String
+    public let username: String?
+    public let fullName: String?
+    public let role: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, email, username, role
+        case fullName = "full_name"
+    }
+}
+
+struct LoginResponse: Codable {
+    let success: Bool
+    let token: String
+    let expiresAt: String?
+    let user: AgentUser
+
+    enum CodingKeys: String, CodingKey {
+        case success, token, user
+        case expiresAt = "expires_at"
     }
 }
 

@@ -57,21 +57,28 @@ public class LiveChatClient {
         return response.messages
     }
     
-    public func sendEscalationMessage(escalationId: String, text: String) async throws -> ChatMessage {
+    // Was POST .../messages - that path was never registered on the
+    // backend (only .../messages/agent and .../messages/user exist), so
+    // every agent send from this SDK 404'd. This SDK only ever sends as
+    // the agent, so .../messages/agent is the correct, and only correct,
+    // endpoint here.
+    public func sendEscalationMessage(escalationId: String, text: String, attachmentUrl: String? = nil, attachmentType: String? = nil, attachmentName: String? = nil) async throws -> ChatMessage {
         let response: SendChatMessageResponse = try await apiClient.request(
-            path: "/client-portal/live-chat/escalations/\(escalationId)/messages",
+            path: "/client-portal/live-chat/escalations/\(escalationId)/messages/agent",
             method: "POST",
-            body: SendChatMessageRequest(messageText: text, messageType: "text")
+            body: SendChatMessageRequest(messageText: text, attachmentUrl: attachmentUrl, attachmentType: attachmentType, attachmentName: attachmentName)
         )
         return response.message
     }
-    
+
+    // Was POST .../mark-read - also never registered; the real path is
+    // .../messages/read.
     public func markEscalationMessagesRead(escalationId: String) async throws {
         struct Response: Codable {
             let success: Bool
         }
         let _: Response = try await apiClient.request(
-            path: "/client-portal/live-chat/escalations/\(escalationId)/mark-read",
+            path: "/client-portal/live-chat/escalations/\(escalationId)/messages/read",
             method: "POST"
         )
     }
@@ -117,14 +124,81 @@ public class LiveChatClient {
         )
     }
     
-    public func sendTypingIndicator(escalationId: String, isTyping: Bool) async throws {
+    // Was POST .../escalations/{id}/typing - no such path exists anywhere
+    // on the backend, so this always 404'd. The one real typing endpoint
+    // is POST /pusher/typing (routes/pusher_routes.py), a flat path that
+    // takes escalation_id in the body rather than as a URL path segment.
+    public func sendTypingIndicator(escalationId: String, isTyping: Bool, senderName: String = "Agent") async throws {
         struct Response: Codable {
             let success: Bool
         }
         let _: Response = try await apiClient.request(
-            path: "/client-portal/live-chat/escalations/\(escalationId)/typing",
+            path: "/pusher/typing",
             method: "POST",
-            body: ["is_typing": isTyping]
+            body: TypingIndicatorRequest(escalationId: escalationId, senderName: senderName, isTyping: isTyping)
+        )
+    }
+
+    // MARK: - Ownership
+
+    // Sending a message requires owning the escalation first unless
+    // authenticated with a bare client API key (see
+    // routes/live_chat_routes.py send_agent_message's ownership gate) -
+    // none of these were ever called anywhere in this SDK before.
+
+    /// Claims an unowned escalation. Throws APIError.httpError(409, _) if
+    /// someone else already claimed it first.
+    public func claimEscalation(escalationId: String) async throws -> Escalation {
+        struct Response: Codable { let success: Bool; let escalation: Escalation }
+        let response: Response = try await apiClient.request(
+            path: "/client-portal/live-chat/escalations/\(escalationId)/claim",
+            method: "POST"
+        )
+        return response.escalation
+    }
+
+    public func releaseEscalation(escalationId: String) async throws {
+        struct Response: Codable { let success: Bool }
+        let _: Response = try await apiClient.request(
+            path: "/client-portal/live-chat/escalations/\(escalationId)/release",
+            method: "POST"
+        )
+    }
+
+    /// Supervisor/admin override of the current owner.
+    public func takeoverEscalation(escalationId: String, reason: String? = nil) async throws -> Escalation {
+        struct Response: Codable { let success: Bool; let escalation: Escalation }
+        let response: Response = try await apiClient.request(
+            path: "/client-portal/live-chat/escalations/\(escalationId)/takeover",
+            method: "POST",
+            body: TakeoverRequest(reason: reason)
+        )
+        return response.escalation
+    }
+
+    /// Extends the ownership lease - call every ~30s while a chat is open.
+    /// Throws APIError.httpError(409, _) if ownership was lost.
+    public func sendHeartbeat(escalationId: String) async throws {
+        struct Response: Codable { let success: Bool }
+        let _: Response = try await apiClient.request(
+            path: "/client-portal/live-chat/escalations/\(escalationId)/heartbeat",
+            method: "POST"
+        )
+    }
+
+    // MARK: - Attachments
+
+    /// Uploads a file for this escalation and sends it as a message in one
+    /// call - nothing in this SDK could attach a file to a live-chat
+    /// message before this.
+    public func sendAttachment(escalationId: String, filename: String, mimeType: String, data: Data, caption: String? = nil) async throws -> ChatMessage {
+        let uploaded = try await apiClient.uploadAgentAttachment(escalationId: escalationId, filename: filename, mimeType: mimeType, data: data)
+        return try await sendEscalationMessage(
+            escalationId: escalationId,
+            text: caption ?? "",
+            attachmentUrl: uploaded.attachmentUrl,
+            attachmentType: uploaded.attachmentType,
+            attachmentName: uploaded.attachmentName
         )
     }
 }
